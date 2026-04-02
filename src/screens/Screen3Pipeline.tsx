@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { GameState } from '../types/game';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { GameState } from '../types/game';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Network, ArrowRight, AlertCircle, Unlink, Link2 } from 'lucide-react';
+import { Network, AlertCircle, Unlink, Link2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ScreenProps {

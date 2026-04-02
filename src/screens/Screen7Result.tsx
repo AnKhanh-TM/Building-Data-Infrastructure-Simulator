@@ -9,7 +9,7 @@ interface ScreenProps {
   nextStep: () => void; // Used as Reset function here
 }
 
-export const Screen7Result = ({ state, updateState, nextStep }: ScreenProps) => {
+export const Screen7Result = ({ state, nextStep }: ScreenProps) => {
   // Add 10 pts for completion basically
   const finalScore = state.score.info + state.score.sources + state.score.pipeline + 
                      state.score.warehouse + state.score.dataModel + state.score.dashboard + 10;
