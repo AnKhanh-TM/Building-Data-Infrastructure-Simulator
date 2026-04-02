@@ -1,0 +1,196 @@
+import { useState } from 'react';
+import type { GameState } from '../types/game';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { LayoutDashboard, PlusCircle, MinusCircle, ArrowRight, BarChart3 } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+interface ScreenProps {
+  state: GameState;
+  updateState: (updates: Partial<GameState>) => void;
+  nextStep: () => void;
+}
+
+const ALL_METRICS = [
+  { id: 'rev_channel', label: 'Revenue by Channel' },
+  { id: 'repeat_rate', label: 'Repeat Purchase Rate' },
+  { id: 'aov', label: 'Average Order Value (AOV)' },
+  { id: 'freq', label: 'Purchase Frequency' },
+  { id: 'segments', label: 'Top Customer Segments' },
+  { id: 'funnel', label: 'Funnel Conversion Rate' },
+  { id: 'time_between', label: 'Time Between Purchases' },
+  { id: 'voucher', label: 'Voucher Conversion Rate' },
+  { id: 'attendance', label: 'Employee Attendance' },
+  { id: 'uptime', label: 'Server Uptime' },
+];
+
+const WRONG_METRICS = ['attendance', 'uptime'];
+
+export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) => {
+  const [selectedKPIs, setSelectedKPIs] = useState<string[]>(state.selections.dashboardKPIs || []);
+  const [audience, setAudience] = useState(state.selections.dashboardADO?.audience || '');
+  const [breakdown, setBreakdown] = useState(state.selections.dashboardADO?.breakdown || '');
+  const [error, setError] = useState('');
+
+  const toggleKPI = (id: string) => {
+    setSelectedKPIs(prev => {
+      if (prev.includes(id)) return prev.filter(kpi => kpi !== id);
+      return [...prev, id];
+    });
+    setError('');
+  };
+
+  const validateAndNext = () => {
+    if (selectedKPIs.length < 4) {
+      setError("Vui lòng chọn ít nhất 4 chỉ số (KPIs) quan trọng nhất.");
+      return;
+    }
+    
+    if (!audience || !breakdown) {
+      setError("Vui lòng trả lời câu hỏi phụ về phân tích ADO bên dưới Dashboard.");
+      return;
+    }
+
+    let wrongCount = 0;
+    selectedKPIs.forEach(kpi => {
+      if (WRONG_METRICS.includes(kpi)) wrongCount++;
+    });
+
+    let score = 20;
+    if (wrongCount > 0) {
+      score -= (wrongCount * 5); // minus 5 per wrong metric
+    }
+    if (score < 0) score = 0;
+
+    updateState({
+      score: { ...state.score, dashboard: score },
+      selections: {
+        ...state.selections, 
+        dashboardKPIs: selectedKPIs,
+        dashboardADO: { audience, breakdown }
+      }
+    });
+
+    nextStep();
+  };
+
+  return (
+    <div className="w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-6">
+      
+      {/* Left side: Metrics Selection */}
+      <div className="w-full md:w-1/3 space-y-4">
+        <div className="mb-4">
+          <span className="inline-block px-3 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full mb-2 uppercase tracking-wider">
+            Bước 5: Output
+          </span>
+          <h2 className="text-xl font-bold text-slate-800">Chọn Chỉ Số (KPIs)</h2>
+          <p className="text-sm text-slate-600">Click để đưa vào Dashboard</p>
+        </div>
+
+        <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 pb-4">
+          {ALL_METRICS.map(metric => {
+            const isSelected = selectedKPIs.includes(metric.id);
+            return (
+              <div 
+                key={metric.id}
+                onClick={() => toggleKPI(metric.id)}
+                className={cn(
+                  "p-3 border rounded-lg cursor-pointer transition text-sm flex justify-between items-center group",
+                  isSelected 
+                    ? "border-rose-300 bg-rose-50 text-rose-900 font-medium" 
+                    : "border-slate-200 bg-white hover:border-rose-200 hover:bg-slate-50 text-slate-700"
+                )}
+              >
+                {metric.label}
+                {isSelected ? (
+                  <MinusCircle size={18} className="text-rose-500" />
+                ) : (
+                  <PlusCircle size={18} className="text-slate-400 group-hover:text-rose-400" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right side: Dashboard Preview */}
+      <div className="w-full md:w-2/3 flex flex-col">
+        <Card className="flex-1 bg-slate-100/50 border-2 border-dashed border-slate-300 flex flex-col p-4 shadow-inner relative min-h-[400px]">
+          <div className="flex items-center gap-2 text-slate-500 mb-6 pb-4 border-b border-slate-200">
+            <LayoutDashboard size={24} />
+            <span className="font-semibold text-lg">Customer Behavior Dashboard</span>
+          </div>
+
+          {selectedKPIs.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+              <BarChart3 size={48} className="mb-4 opacity-50" />
+              <p>Chưa có chỉ số nào được chọn</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max">
+              {selectedKPIs.map(id => {
+                const mst = ALL_METRICS.find(m => m.id === id);
+                return (
+                  <div key={id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-24 animate-in zoom-in-95 duration-200">
+                    <span className="text-xs font-semibold text-slate-500 truncate leading-tight">{mst?.label}</span>
+                    <div className="h-6 w-1/2 bg-slate-100 rounded mt-auto" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Framework ADO Questions */}
+        <Card className="mt-4 p-5 shadow-sm border-blue-200 bg-blue-50/50">
+          <h3 className="font-bold text-slate-800 mb-4 text-sm flex items-center gap-2">
+            <span className="bg-blue-600 text-white w-5 h-5 rounded-full inline-flex items-center justify-center text-xs">?</span>
+            Phân tích bối cảnh (Framework ADO)
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Dashboard này ưu tiên thiết kế cho ai xem? (Audience)
+              </label>
+              <select 
+                value={audience} onChange={(e) => setAudience(e.target.value)}
+                className="w-full text-sm p-2 rounded border border-blue-200 bg-white"
+              >
+                <option value="">-- Chọn đối tượng --</option>
+                <option value="marketing_manager">Marketing/Sales Manager</option>
+                <option value="data_engineer">Data Engineer</option>
+                <option value="accounting">Nhân viên Kế toán</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Góc nhìn (Breakdown) quan trọng nhất muốn xem là gì?
+              </label>
+              <select 
+                value={breakdown} onChange={(e) => setBreakdown(e.target.value)}
+                className="w-full text-sm p-2 rounded border border-blue-200 bg-white"
+              >
+                <option value="">-- Chọn góc nhìn --</option>
+                <option value="time_segment">Thời gian & Phân khúc KH (Segments)</option>
+                <option value="ip_address">Địa chỉ IP của KH</option>
+                <option value="server_load">Trạng thái chịu tải của Data Warehouse</option>
+              </select>
+            </div>
+          </div>
+        </Card>
+
+        {error && (
+          <div className="mt-4 text-sm text-red-600 font-medium bg-red-50 p-2 rounded px-3 border border-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 flex justify-end">
+          <Button onClick={validateAndNext} size="lg" className="px-8 shadow-md hover:shadow-lg">
+            Hoàn thành dự án <ArrowRight size={20} className="ml-2" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
