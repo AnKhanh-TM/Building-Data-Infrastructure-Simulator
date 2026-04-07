@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { INITIAL_STATE, type GameState } from './types/game';
+import { INITIAL_STATE, type GameState, BUSINESS_OBJECTIVE } from './types/game';
 import { ProgressBar } from './components/ui/ProgressBar';
 
 import { Screen1Welcome } from './screens/Screen1Welcome';
@@ -75,6 +75,22 @@ function App() {
       </header>
 
       <main className="flex-1 w-full max-w-6xl mx-auto flex flex-col pt-0 relative z-0">
+        {state.currentStep > 1 && state.currentStep < 7 && (
+          <div className="mt-6 mb-2 px-4 animate-in fade-in slide-in-from-top-4 duration-700">
+            <div className="bg-white border border-brand-100 rounded-xl p-4 shadow-sm flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 shrink-0">
+                <span className="text-xl">🎯</span>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-brand-600 uppercase tracking-widest mb-0.5">Mục tiêu của hệ thống</p>
+                <p className="text-slate-700 font-semibold leading-tight capitalize-first">
+                  "{BUSINESS_OBJECTIVE}"
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {state.currentStep > 1 && state.currentStep < 7 && (
           <ProgressBar currentStep={state.currentStep} totalSteps={7} />
         )}

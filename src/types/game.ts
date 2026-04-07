@@ -1,3 +1,5 @@
+export const BUSINESS_OBJECTIVE = "Hiểu rõ thói quen mua hàng của khách hàng để đưa ra chiến lược marketing & sales hiệu quả hơn.";
+
 export interface UserProfile {
   name: string;
   classCode: string;
@@ -5,6 +7,7 @@ export interface UserProfile {
 
 export interface GameState {
   currentStep: number;
+  submittedSteps: number[];
   profile: UserProfile;
   score: {
     info: number;
@@ -28,6 +31,7 @@ export interface GameState {
 
 export const INITIAL_STATE: GameState = {
   currentStep: 1,
+  submittedSteps: [],
   profile: { name: '', classCode: '' },
   score: {
     info: 0,

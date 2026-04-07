@@ -19,29 +19,23 @@ const OPTIONS = [
 ];
 
 export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) => {
+  const isSubmitted = state.submittedSteps.includes(4);
   const [selected, setSelected] = useState<string>(state.selections.warehouseAnswer || '');
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [attempts, setAttempts] = useState(0);
+  const [showFeedback, setShowFeedback] = useState(isSubmitted);
 
   const isCorrect = selected === 'warehouse';
 
   const handleSubmit = () => {
     if (!selected) return;
-    setHasSubmitted(true);
-    if (!isCorrect) {
-      setAttempts(prev => prev + 1);
-    }
-  };
-
-  const handleNext = () => {
-    // Score logic: 10 pts max, minus 3 per wrong attempt
-    const score = Math.max(10 - (attempts * 3), 0);
+    
+    const score = isCorrect ? 10 : 0;
     
     updateState({
       score: { ...state.score, warehouse: score },
-      selections: { ...state.selections, warehouseAnswer: selected }
+      selections: { ...state.selections, warehouseAnswer: selected },
+      submittedSteps: [...state.submittedSteps, 4]
     });
-    nextStep();
+    setShowFeedback(true);
   };
 
   return (
@@ -69,55 +63,55 @@ export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) 
               <div 
                 key={opt.id}
                 onClick={() => {
-                  if (!hasSubmitted || !isCorrect) {
+                  if (!isSubmitted) {
                     setSelected(opt.id);
-                    setHasSubmitted(false); // reset view to allow resubmit
                   }
                 }}
                 className={cn(
-                  "p-4 rounded-lg border-2 cursor-pointer transition-colors flex items-center gap-3",
+                  "p-4 rounded-lg border-2 transition-colors flex items-center gap-3",
+                  !isSubmitted && "cursor-pointer hover:border-slate-300",
                   selected === opt.id 
                     ? "border-indigo-500 bg-indigo-50 font-medium text-indigo-900" 
-                    : "border-slate-200 hover:border-slate-300 text-slate-700",
-                  hasSubmitted && selected === opt.id && !isCorrect && "border-red-500 bg-red-50 text-red-700",
-                  hasSubmitted && selected === opt.id && isCorrect && "border-green-500 bg-green-50 text-green-700"
+                    : "border-slate-200 text-slate-700",
+                  showFeedback && selected === opt.id && !isCorrect && "border-red-500 bg-red-50 text-red-700",
+                  showFeedback && selected === opt.id && isCorrect && "border-green-500 bg-green-50 text-green-700"
                 )}
               >
                 <div className={cn(
                   "w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center",
                   selected === opt.id ? "border-indigo-500 bg-white" : "border-slate-300"
                 )}>
-                  {selected === opt.id && <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full" />}
+                  {selected === opt.id && <div className={cn("w-2.5 h-2.5 rounded-full", isCorrect && showFeedback ? "bg-green-500" : !isCorrect && showFeedback ? "bg-red-500" : "bg-indigo-500")} />}
                 </div>
                 {opt.text}
               </div>
             ))}
           </div>
 
-          {hasSubmitted && (
+          {showFeedback && (
             <div className={cn(
               "p-4 rounded-lg mb-6 flex gap-3 animate-in fade-in duration-300",
               isCorrect ? "bg-green-100/50 text-green-800" : "bg-red-100/50 text-red-800"
             )}>
-              {isCorrect ? <CheckCircle2 className="flex-shrink-0" /> : <XCircle className="flex-shrink-0" />}
+              {isCorrect ? <CheckCircle2 className="flex-shrink-0 text-green-600" /> : <XCircle className="flex-shrink-0 text-red-600" />}
               <div>
                 <p className="font-semibold mb-1">{isCorrect ? 'Chính xác!' : 'Chưa hợp lý!'}</p>
                 <p className="text-sm">
                   {isCorrect 
                     ? "Data Pipeline chỉ làm nhiệm vụ vận chuyển. Data Warehouse mới là nơi lưu trữ dữ liệu tập trung, được thiết kế tối ưu để sẵn sàng cho việc query phân tích lượng Data lớn."
-                    : "Dữ liệu mới hút về còn thô, chưa kết nối và chưa được tối ưu, nếu dùng luôn sẽ rất chậm và dễ sai sót. Cần có nơi lưu trữ trung gian chuyên biệt."}
+                    : "Dữ liệu mới hút về còn thô, chưa kết nối và chưa được tối ưu. Cần có nơi lưu trữ trung gian chuyên biệt như Data Warehouse trước khi đưa lên dashboard."}
                 </p>
               </div>
             </div>
           )}
 
           <div className="flex justify-end pt-2 border-t border-slate-100">
-            {!hasSubmitted || !isCorrect ? (
-              <Button onClick={handleSubmit} disabled={!selected}>
-                Kiểm tra đáp án
+            {!isSubmitted ? (
+              <Button onClick={handleSubmit} disabled={!selected} className="gap-2">
+                Nộp bài <ArrowRight size={20} />
               </Button>
             ) : (
-              <Button onClick={handleNext} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+              <Button onClick={nextStep} className="bg-indigo-600 hover:bg-indigo-700 gap-2">
                 Tiếp tục <ArrowRight size={20} />
               </Button>
             )}

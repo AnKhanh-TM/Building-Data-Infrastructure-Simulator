@@ -39,11 +39,14 @@ const CORRECT_MAPPINGS = {
 };
 
 export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps) => {
+  const isSubmitted = state.submittedSteps.includes(2);
   const [selectedSources, setSelectedSources] = useState<string[]>(state.selections.sources || []);
   const [mappings, setMappings] = useState<Record<string, string>>(state.selections.sourceQuestions || {});
   const [error, setError] = useState('');
+  const [showFeedback, setShowFeedback] = useState(isSubmitted);
 
   const toggleSource = (sourceId: string) => {
+    if (isSubmitted) return;
     setSelectedSources(prev => {
       if (prev.includes(sourceId)) {
         const newMappings = { ...mappings };
@@ -57,11 +60,12 @@ export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps
   };
 
   const handleSelectQuestion = (sourceId: string, questionId: string) => {
+    if (isSubmitted) return;
     setMappings(prev => ({ ...prev, [sourceId]: questionId }));
     setError('');
   };
 
-  const validateAndProceed = () => {
+  const handleSubmit = () => {
     // Check if at least 3 sources are selected
     if (selectedSources.length < 3) {
       setError('Vui lòng chọn ít nhất 3 data sources quan trọng.');
@@ -76,8 +80,6 @@ export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps
     }
 
     // Must include core sources for this specific business objective
-    // Objective: "Hiểu rõ thói quen mua hàng của khách hàng"
-    // Core sources: GA4 (behavior), CRM (retention), POS (purchases)
     const CORE_SOURCES = ['ga4', 'crm', 'pos'];
     const hasCore = CORE_SOURCES.filter(id => selectedSources.includes(id));
     if (hasCore.length < 2) {
@@ -86,25 +88,21 @@ export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps
     }
 
     // Calculate score (Max 25 pts)
-    let score = 0;
     let correctCount = 0;
-    
     selectedSources.forEach(source => {
       if (CORRECT_MAPPINGS[source as keyof typeof CORRECT_MAPPINGS] === mappings[source]) {
         correctCount++;
       }
     });
 
-    // Score logic: 5 base points for selecting 3+ sources. +5 per correct mapping (cap at 20).
-    score = 5 + (correctCount * 5);
-    if (score > 25) score = 25;
+    const score = Math.min(5 + (correctCount * 5), 25);
 
     updateState({
       score: { ...state.score, sources: score },
-      selections: { ...state.selections, sources: selectedSources, sourceQuestions: mappings }
+      selections: { ...state.selections, sources: selectedSources, sourceQuestions: mappings },
+      submittedSteps: [...state.submittedSteps, 2]
     });
-    
-    nextStep();
+    setShowFeedback(true);
   };
 
   return (
@@ -126,16 +124,20 @@ export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {SOURCES.map(source => {
           const isSelected = selectedSources.includes(source.id);
+          const isCorrectMapping = mappings[source.id] === CORRECT_MAPPINGS[source.id as keyof typeof CORRECT_MAPPINGS];
+          
           return (
             <Card 
               key={source.id} 
               className={cn(
                 "p-4 transition-all duration-200 border-2",
-                isSelected ? "border-brand-500 bg-brand-50/30" : "border-slate-200 hover:border-brand-200 cursor-pointer"
+                isSelected ? "border-brand-500 bg-brand-50/30" : "border-slate-200 hover:border-brand-200 cursor-pointer",
+                showFeedback && isSelected && (isCorrectMapping ? "border-green-500 bg-green-50/50" : "border-amber-500 bg-amber-50/50"),
+                isSubmitted && "cursor-default"
               )}
             >
               <div 
-                className="flex items-center justify-between mb-2 cursor-pointer"
+                className={cn("flex items-center justify-between mb-2", !isSubmitted && "cursor-pointer")}
                 onClick={() => toggleSource(source.id)}
               >
                 <div className="flex items-center gap-3">
@@ -156,9 +158,13 @@ export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps
                     Giải quyết câu hỏi nào?
                   </label>
                   <select 
-                    className="w-full text-sm p-2 rounded border border-brand-200 bg-white text-slate-700 outline-none focus:ring-2 focus:ring-brand-500"
+                    className={cn(
+                      "w-full text-sm p-2 rounded border border-brand-200 bg-white text-slate-700 outline-none focus:ring-2 focus:ring-brand-500",
+                      isSubmitted && "bg-slate-50 cursor-not-allowed"
+                    )}
                     value={mappings[source.id] || ''}
                     onChange={(e) => handleSelectQuestion(source.id, e.target.value)}
+                    disabled={isSubmitted}
                   >
                     <option value="" disabled>-- Chọn câu hỏi kinh doanh --</option>
                     {QUESTIONS.map(q => (
@@ -167,6 +173,20 @@ export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps
                       </option>
                     ))}
                   </select>
+                  
+                  {showFeedback && (
+                    <div className={cn(
+                      "mt-3 text-xs p-2 rounded flex items-start gap-2",
+                      isCorrectMapping ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
+                    )}>
+                      {isCorrectMapping ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <AlertCircle size={14} className="mt-0.5 shrink-0" />}
+                      <p>
+                        {isCorrectMapping 
+                          ? "Chính xác! Source này cung cấp đúng dữ liệu để trả lời câu hỏi này." 
+                          : `Chưa chuẩn. Câu hỏi này phù hợp hơn với ${SOURCES.find(s => s.id === Object.keys(CORRECT_MAPPINGS).find(key => CORRECT_MAPPINGS[key as keyof typeof CORRECT_MAPPINGS] === mappings[source.id]))?.label || 'nguồn khác'}.`}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
@@ -174,10 +194,16 @@ export const Screen2DataSources = ({ state, updateState, nextStep }: ScreenProps
         })}
       </div>
 
-      <div className="flex justify-end pt-4">
-        <Button onClick={validateAndProceed} size="lg" className="flex items-center gap-2">
-          Xác nhận & Tiếp tục <ArrowRight size={20} />
-        </Button>
+      <div className="flex justify-end pt-4 border-t border-slate-100">
+        {!isSubmitted ? (
+          <Button onClick={handleSubmit} size="lg" className="flex items-center gap-2">
+            Nộp bài <ArrowRight size={20} />
+          </Button>
+        ) : (
+          <Button onClick={nextStep} size="lg" className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
+            Tiếp tục <ArrowRight size={20} />
+          </Button>
+        )}
       </div>
     </div>
   );

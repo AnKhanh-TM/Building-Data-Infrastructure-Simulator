@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { GameState } from '../types/game';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { LayoutDashboard, PlusCircle, MinusCircle, ArrowRight, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, MinusCircle, ArrowRight, BarChart3, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ScreenProps {
@@ -27,12 +27,15 @@ const ALL_METRICS = [
 const WRONG_METRICS = ['attendance', 'uptime'];
 
 export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) => {
+  const isSubmitted = state.submittedSteps.includes(6);
   const [selectedKPIs, setSelectedKPIs] = useState<string[]>(state.selections.dashboardKPIs || []);
   const [audience, setAudience] = useState(state.selections.dashboardADO?.audience || '');
   const [breakdown, setBreakdown] = useState(state.selections.dashboardADO?.breakdown || '');
   const [error, setError] = useState('');
+  const [showFeedback, setShowFeedback] = useState(isSubmitted);
 
   const toggleKPI = (id: string) => {
+    if (isSubmitted) return;
     setSelectedKPIs(prev => {
       if (prev.includes(id)) return prev.filter(kpi => kpi !== id);
       return [...prev, id];
@@ -40,7 +43,7 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
     setError('');
   };
 
-  const validateAndNext = () => {
+  const handleSubmit = () => {
     if (selectedKPIs.length < 4) {
       setError("Vui lòng chọn ít nhất 4 chỉ số (KPIs) quan trọng nhất.");
       return;
@@ -56,11 +59,7 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
       if (WRONG_METRICS.includes(kpi)) wrongCount++;
     });
 
-    let score = 20;
-    if (wrongCount > 0) {
-      score -= (wrongCount * 5); // minus 5 per wrong metric
-    }
-    if (score < 0) score = 0;
+    let score = Math.max(20 - (wrongCount * 5), 0);
 
     updateState({
       score: { ...state.score, dashboard: score },
@@ -68,10 +67,10 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
         ...state.selections, 
         dashboardKPIs: selectedKPIs,
         dashboardADO: { audience, breakdown }
-      }
+      },
+      submittedSteps: [...state.submittedSteps, 6]
     });
-
-    nextStep();
+    setShowFeedback(true);
   };
 
   return (
@@ -95,10 +94,11 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
                 key={metric.id}
                 onClick={() => toggleKPI(metric.id)}
                 className={cn(
-                  "p-3 border rounded-lg cursor-pointer transition text-sm flex justify-between items-center group",
+                  "p-3 border rounded-lg transition text-sm flex justify-between items-center group",
                   isSelected 
                     ? "border-rose-300 bg-rose-50 text-rose-900 font-medium" 
-                    : "border-slate-200 bg-white hover:border-rose-200 hover:bg-slate-50 text-slate-700"
+                    : "border-slate-200 bg-white hover:border-rose-200 hover:bg-slate-50 text-slate-700",
+                  !isSubmitted ? "cursor-pointer" : "cursor-default"
                 )}
               >
                 {metric.label}
@@ -130,9 +130,16 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max">
               {selectedKPIs.map(id => {
                 const mst = ALL_METRICS.find(m => m.id === id);
+                const isWrong = showFeedback && WRONG_METRICS.includes(id);
                 return (
-                  <div key={id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-24 animate-in zoom-in-95 duration-200">
-                    <span className="text-xs font-semibold text-slate-500 truncate leading-tight">{mst?.label}</span>
+                  <div key={id} className={cn(
+                    "p-4 rounded-xl shadow-sm border flex flex-col justify-between h-24 animate-in zoom-in-95 duration-200",
+                    isWrong ? "bg-red-50 border-red-200" : "bg-white border-slate-200"
+                  )}>
+                    <div className="flex justify-between items-start">
+                      <span className="text-xs font-semibold text-slate-500 truncate leading-tight">{mst?.label}</span>
+                      {isWrong && <div className="w-2 h-2 bg-red-500 rounded-full shrink-0" />}
+                    </div>
                     <div className="h-6 w-1/2 bg-slate-100 rounded mt-auto" />
                   </div>
                 );
@@ -154,7 +161,8 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
               </label>
               <select 
                 value={audience} onChange={(e) => setAudience(e.target.value)}
-                className="w-full text-sm p-2 rounded border border-blue-200 bg-white"
+                className={cn("w-full text-sm p-2 rounded border border-blue-200 bg-white", isSubmitted && "bg-slate-50 cursor-not-allowed")}
+                disabled={isSubmitted}
               >
                 <option value="">-- Chọn đối tượng --</option>
                 <option value="marketing_manager">Marketing/Sales Manager</option>
@@ -168,7 +176,8 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
               </label>
               <select 
                 value={breakdown} onChange={(e) => setBreakdown(e.target.value)}
-                className="w-full text-sm p-2 rounded border border-blue-200 bg-white"
+                className={cn("w-full text-sm p-2 rounded border border-blue-200 bg-white", isSubmitted && "bg-slate-50 cursor-not-allowed")}
+                disabled={isSubmitted}
               >
                 <option value="">-- Chọn góc nhìn --</option>
                 <option value="time_segment">Thời gian & Phân khúc KH (Segments)</option>
@@ -179,6 +188,21 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
           </div>
         </Card>
 
+        {showFeedback && (
+          <div className={cn(
+            "mt-4 p-4 rounded-lg text-sm border",
+            selectedKPIs.some(k => WRONG_METRICS.includes(k)) || audience !== 'marketing_manager' || breakdown !== 'time_segment'
+              ? "bg-amber-50 text-amber-800 border-amber-200" 
+              : "bg-green-50 text-green-800 border-green-200"
+          )}>
+            <p className="font-bold mb-1">Giải thích:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>KPIs: Các chỉ số vận hành server (Uptime) hay nhân sự (Attendance) không giải quyết mục tiêu hiểu hành vi mua hàng.</li>
+              <li>ADO: Để tối ưu marketing, manager cần Breakdown theo Phân khúc và Thời gian để thấy xu hướng.</li>
+            </ul>
+          </div>
+        )}
+
         {error && (
           <div className="mt-4 text-sm text-red-600 font-medium bg-red-50 p-2 rounded px-3 border border-red-200">
             {error}
@@ -186,9 +210,15 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
         )}
 
         <div className="mt-4 flex justify-end">
-          <Button onClick={validateAndNext} size="lg" className="px-8 shadow-md hover:shadow-lg">
-            Hoàn thành dự án <ArrowRight size={20} className="ml-2" />
-          </Button>
+          {!isSubmitted ? (
+            <Button onClick={handleSubmit} size="lg" className="px-8 shadow-md hover:shadow-lg gap-2">
+              Nộp bài <ArrowRight size={20} />
+            </Button>
+          ) : (
+            <Button onClick={nextStep} size="lg" className="px-8 shadow-md hover:shadow-lg bg-green-600 hover:bg-green-700 gap-2">
+              Hoàn thành dự án <CheckCircle2 size={20} />
+            </Button>
+          )}
         </div>
       </div>
     </div>

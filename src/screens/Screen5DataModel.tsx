@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { GameState } from '../types/game';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Network, AlertCircle, Unlink, Link2 } from 'lucide-react';
+import { Network, AlertCircle, Unlink, Link2, ArrowRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ScreenProps {
@@ -30,11 +30,15 @@ type Node = { table: string; column: string };
 type Connection = { source: Node; target: Node; id: number };
 
 export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) => {
+  const isSubmitted = state.submittedSteps.includes(5);
   const [activeNode, setActiveNode] = useState<Node | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(
+    isSubmitted ? { type: 'success', msg: 'Chính xác! Cấu trúc Data Model dạng Star Schema (1 Fact - 2 Dims) đã hoàn thành.' } : null
+  );
 
   const handleNodeClick = (table: string, column: string) => {
+    if (isSubmitted) return;
     // Check if the node is already connected
     const existingConn = connections.find(c => 
       (c.source.table === table && c.source.column === column) ||
@@ -76,9 +80,7 @@ export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) 
   };
 
   const validateModel = () => {
-    // Expected:
-    // Orders.customer_id <-> Customer.customer_id
-    // Orders.product_id <-> Product.product_id
+    if (isSubmitted) return;
     
     let hasCustomerLink = false;
     let hasProductLink = false;
@@ -98,36 +100,26 @@ export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) 
       else hasInvalidLinks = true;
     });
 
-    if (hasInvalidLinks) {
+    const isPerfect = !hasInvalidLinks && hasCustomerLink && hasProductLink;
+    const score = isPerfect ? 20 : 0;
+
+    if (!isPerfect) {
       setFeedback({
         type: 'error',
-        msg: 'Có kết nối không hợp lý! Hãy kiểm tra lại logic nghiệp vụ: ID bảng chính xác với ID bảng phụ chưa?'
+        msg: 'Cấu trúc chưa chính xác! Đáp án đúng: Phải nối Orders(customer_id) với Customer(customer_id) và Orders(product_id) với Product(product_id).'
       });
-      return;
-    }
-
-    if (!hasCustomerLink || !hasProductLink) {
+    } else {
       setFeedback({
-        type: 'error',
-        msg: 'Bạn chưa nối đủ các bảng. Cần nối Orders với cả Customer và Product.'
+        type: 'success',
+        msg: 'Chính xác! Cấu trúc Data Model dạng Star Schema (1 Fact - 2 Dims) đã hoàn thành.'
       });
-      return;
     }
-
-    // Success (20 pts)
-    setFeedback({
-      type: 'success',
-      msg: 'Chính xác! Cấu trúc Data Model dạng Star Schema (1 Fact - 2 Dims) đã hoàn thành.'
-    });
 
     updateState({
-      score: { ...state.score, dataModel: 20 },
-      selections: { ...state.selections, modelConnections: { connected: 'true' } }
+      score: { ...state.score, dataModel: score },
+      selections: { ...state.selections, modelConnections: { connected: isPerfect ? 'true' : 'false' } },
+      submittedSteps: [...state.submittedSteps, 5]
     });
-
-    setTimeout(() => {
-      nextStep();
-    }, 2000);
   };
 
   const connectionColors = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500'];
@@ -147,7 +139,7 @@ export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) 
 
       {feedback && (
         <div className={cn(
-          "mb-6 px-4 py-3 rounded-lg flex items-center justify-center gap-2",
+          "mb-6 px-4 py-3 rounded-lg flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-400",
           feedback.type === 'error' ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"
         )}>
           {feedback.type === 'error' ? <AlertCircle size={20} /> : <Network size={20} />}
@@ -160,7 +152,7 @@ export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) 
         {(Object.keys(TABLES) as Array<keyof typeof TABLES>).map((tableKey) => {
           const table = TABLES[tableKey];
           return (
-            <Card key={tableKey} className="overflow-hidden shadow-md border-slate-200">
+            <Card key={tableKey} className={cn("overflow-hidden shadow-md border-slate-200", isSubmitted && "opacity-90")}>
               <div className="bg-slate-800 text-white font-semibold py-3 px-4 flex items-center gap-2">
                 <DatabaseIcon table={tableKey} />
                 {table.name}
@@ -179,11 +171,12 @@ export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) 
                       className={cn(
                         "flex justify-between items-center px-4 py-2 my-1 rounded cursor-pointer transition-all border",
                         isActive ? "bg-brand-50 border-brand-400 ring-1 ring-brand-400 shadow-sm" : 
-                        isConnected ? "bg-slate-50 border-slate-200" : 
-                        "border-transparent hover:bg-slate-100 text-slate-700"
+                        isConnected ? "bg-slate-50 border-slate-200 font-semibold" : 
+                        "border-transparent hover:bg-slate-100 text-slate-700",
+                        isSubmitted && "cursor-default hover:bg-transparent"
                       )}
                     >
-                      <span className={cn("font-mono text-sm", isConnected && "font-semibold")}>
+                      <span className={cn("font-mono text-sm", isConnected && "text-brand-700")}>
                         {col}
                       </span>
                       
@@ -194,7 +187,7 @@ export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) 
                         </div>
                       )}
 
-                      {isActive && !isConnected && (
+                      {isActive && !isSubmitted && !isConnected && (
                         <div className="w-2.5 h-2.5 bg-brand-500 rounded-full animate-ping" />
                       )}
                     </div>
@@ -206,14 +199,22 @@ export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) 
         })}
       </div>
 
-      <div className="flex justify-center flex-col items-center gap-4">
-        <p className="text-sm text-slate-500">
-          <Unlink size={16} className="inline mr-1" />
-          Click lại vào một cột đã nối để huỷ kết nối
-        </p>
-        <Button onClick={validateModel} size="lg" className="px-10">
-          Xác nhận Data Model
-        </Button>
+      <div className="flex justify-center flex-col items-center gap-4 border-t border-slate-100 pt-6">
+        {!isSubmitted ? (
+          <>
+            <p className="text-sm text-slate-500">
+              <Unlink size={16} className="inline mr-1" />
+              Click lại vào một cột đã nối để huỷ kết nối
+            </p>
+            <Button onClick={validateModel} size="lg" className="px-10 gap-2">
+              Nộp bài <ArrowRight size={20} />
+            </Button>
+          </>
+        ) : (
+          <Button onClick={nextStep} size="lg" className="px-10 gap-2 bg-green-600 hover:bg-green-700">
+            Tiếp tục <ArrowRight size={20} />
+          </Button>
+        )}
       </div>
     </div>
   );
