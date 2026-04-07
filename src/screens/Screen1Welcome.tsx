@@ -18,10 +18,10 @@ export const Screen1Welcome = ({ state, updateState, nextStep }: ScreenProps) =>
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !classCode.trim()) return;
-    
+
     updateState({
       profile: { name: name.trim(), classCode: classCode.trim() },
-      score: { ...state.score, info: 5 } // 5 pts for entering info
+      score: { ...state.score, info: 0 } // No points for info anymore
     });
     setIsSubmitted(true);
   };
@@ -55,7 +55,7 @@ export const Screen1Welcome = ({ state, updateState, nextStep }: ScreenProps) =>
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">
                   Mã Lớp
@@ -69,7 +69,7 @@ export const Screen1Welcome = ({ state, updateState, nextStep }: ScreenProps) =>
                     value={classCode}
                     onChange={(e) => setClassCode(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors outline-none text-slate-800"
-                    placeholder="VD: DTM01"
+                    placeholder="VD: ABC01"
                     required
                   />
                 </div>
@@ -84,27 +84,27 @@ export const Screen1Welcome = ({ state, updateState, nextStep }: ScreenProps) =>
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <Card className="p-8 shadow-xl bg-gradient-to-br from-white to-brand-50 border-brand-200">
-             <div className="flex justify-center mb-6">
-               <div className="w-16 h-16 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center shadow-inner">
-                 <Target size={32} />
-               </div>
-             </div>
-             
-             <div className="text-center space-y-4 mb-8">
-               <h3 className="text-sm font-bold tracking-widest text-brand-600 uppercase">Business Objective</h3>
-               <p className="text-2xl font-semibold text-slate-800 leading-snug">
-                 Doanh nghiệp muốn: <br/>
-                 <span className="text-brand-700">"Hiểu rõ thói quen mua hàng của khách hàng để đưa ra chiến lược marketing & sales hiệu quả hơn."</span>
-               </p>
-             </div>
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center shadow-inner">
+                <Target size={32} />
+              </div>
+            </div>
 
-             <div className="bg-white/60 p-4 rounded-lg border border-brand-100 text-slate-600 text-center mb-8 text-sm">
-               Nhiệm vụ của bạn là xây dựng một Data Infrastructure từ đầu đến cuối để giải quyết được bài toán kinh doanh này.
-             </div>
+            <div className="text-center space-y-4 mb-8">
+              <h3 className="text-sm font-bold tracking-widest text-brand-600 uppercase">Business Objective</h3>
+              <p className="text-2xl font-semibold text-slate-800 leading-snug">
+                Doanh nghiệp muốn: <br />
+                <span className="text-brand-700">"Hiểu rõ thói quen mua hàng của khách hàng để đưa ra chiến lược marketing & sales hiệu quả hơn."</span>
+              </p>
+            </div>
 
-             <Button onClick={nextStep} size="lg" className="w-full flex items-center gap-2 text-lg shadow-lg shadow-brand-500/20">
-               Tiếp tục <ArrowRight size={20} />
-             </Button>
+            <div className="bg-white/60 p-4 rounded-lg border border-brand-100 text-slate-600 text-center mb-8 text-sm">
+              Nhiệm vụ của bạn là xây dựng một Data Infrastructure từ đầu đến cuối để giải quyết được bài toán kinh doanh này.
+            </div>
+
+            <Button onClick={nextStep} size="lg" className="w-full flex items-center gap-2 text-lg shadow-lg shadow-brand-500/20">
+              Tiếp tục <ArrowRight size={20} />
+            </Button>
           </Card>
         </div>
       )}

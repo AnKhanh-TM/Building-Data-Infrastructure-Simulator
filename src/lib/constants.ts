@@ -2,28 +2,22 @@ export const GAME_CONTENT = {
   step2: {
     title: 'Bước 1: Data Sources',
     sources: [
-      { id: 'ga4', label: 'Google Analytics (GA4)', icon: '📊' },
-      { id: 'crm', label: 'Hệ thống CRM', icon: '👥' },
-      { id: 'ads', label: 'Facebook / Google Ads', icon: '🎯' },
-      { id: 'pos', label: 'Hệ thống Đơn hàng (POS/ERP)', icon: '🛒' },
-      { id: 'email', label: 'Email Marketing', icon: '✉️' },
-      { id: 'heatmap', label: 'Website Heatmap', icon: '🔥' },
+      { id: 'ga4', label: 'Google Analytics (GA4)', icon: '📊', correct: true, reason: 'Theo dõi hành vi người dùng trên web, phễu mua hàng và nguồn truy cập.' },
+      { id: 'crm', label: 'Hệ thống Đơn hàng (Order)', icon: '🛒', correct: true, reason: 'Lưu trữ lịch sử mua hàng, giá trị đơn và trạng thái thanh toán.' },
+      { id: 'pos', label: 'Hệ thống Offline (POS)', icon: '🏪', correct: true, reason: 'Đồng bộ dữ liệu mua hàng tại cửa hàng để có cái nhìn toàn diện (Omnichannel).' },
+      { id: 'ads', label: 'Facebook / Google Ads', icon: '🎯', correct: false, reason: 'Chỉ cung cấp dữ liệu quảng cáo (Reach/Click), không phản ánh thói quen mua hàng thực tế.' },
+      { id: 'email', label: 'Email Marketing', icon: '✉️', correct: false, reason: 'Chỉ là kênh tương tác, không phải nguồn dữ liệu gốc về hành vi người dùng.' },
+      { id: 'heatmap', label: 'Website Heatmap', icon: '🔥', correct: false, reason: 'Quá chi tiết vào vị trí bấm chuột, không cần thiết cho mục tiêu chiến lược tổng thể.' },
     ],
     questions: [
-      { id: 'q_a', text: 'Funnel mua hàng đang rớt ở bước nào trên website?' },
-      { id: 'q_b', text: 'Tỷ lệ khách hàng cũ quay lại mua thêm là bao nhiêu?' },
-      { id: 'q_c', text: 'Kênh quảng cáo nào mang lại chi phí trên mỗi đơn hàng rẻ nhất?' },
-      { id: 'q_d', text: 'Nhóm khách hàng nào mang lại nhiều doanh thu nhất?' },
-      { id: 'q_e', text: 'Tỷ lệ khách hàng mở nhắc nhở khuyến mãi là bao nhiêu?' },
-      { id: 'q_f', text: 'Người dùng hay bấm vào banner nào nhiều nhất trên trang chủ?' },
+      { id: 'q_a', text: 'Hành vi trên web & Nguồn mang lại khách hàng?' },
+      { id: 'q_b', text: 'Lịch sử mua hàng & Giá trị vòng đời khách hàng?' },
+      { id: 'q_c', text: 'Dữ liệu mua hàng tại quầy & Khách hàng offline?' },
     ],
     correctMappings: {
       ga4: 'q_a',
       crm: 'q_b',
-      ads: 'q_c',
-      pos: 'q_d',
-      email: 'q_e',
-      heatmap: 'q_f',
+      pos: 'q_c',
     }
   },
   step3: {
@@ -43,7 +37,7 @@ export const GAME_CONTENT = {
     options: [
       { id: 'warehouse', text: 'Đưa vào lưu trữ tại Data Warehouse' },
       { id: 'dashboard', text: 'Đưa thẳng lên Dashboard' },
-      { id: 'ml', text: 'Xây dựng Machine Learning Model dự đoán' },
+      { id: 'excel', text: 'Xuất ra file Excel để lưu trữ thủ công' },
       { id: 'ppt', text: 'Vẽ biểu đồ bằng PowerPoint để báo cáo ngay' },
     ]
   },
@@ -54,6 +48,6 @@ export const GAME_CONTENT = {
   step6: {
     title: 'Bước 5: Output (Dashboard)',
     explanation: 'Để tối ưu marketing, manager cần Breakdown theo Phân khúc và Thời gian để thấy xu hướng. Chỉ số vận hành kỹ thuật không nên đưa vào Dashboard kinh doanh.',
-    wrongMetrics: ['attendance', 'uptime']
+    wrongMetrics: ['attendance', 'uptime', 'likes', 'cpu']
   }
 };

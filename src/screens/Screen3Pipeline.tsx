@@ -30,7 +30,7 @@ export const Screen3Pipeline = ({ state, updateState, nextStep }: ScreenProps) =
     
     // Score logic: 10 pts max, minus 3 per wrong attempt (or just fix it to single attempt now)
     // Actually, if it's "no change after submit", I should just score it once.
-    const score = isCorrect ? 10 : 0;
+    const score = isCorrect ? 5 : 0;
     
     updateState({
       score: { ...state.score, pipeline: score },

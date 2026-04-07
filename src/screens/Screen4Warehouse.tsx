@@ -15,7 +15,7 @@ const OPTIONS = [
   { id: 'warehouse', text: 'Đưa vào lưu trữ tại Data Warehouse' },
   { id: 'dashboard', text: 'Đưa thẳng lên Dashboard' },
   { id: 'ml', text: 'Xây dựng Machine Learning Model dự đoán' },
-  { id: 'ppt', text: 'Vẽ biểu đồ bằng PowerPoint để báo cáo ngay' },
+  { id: 'ppt', text: 'Vẽ biểu đồ bằng Excel để báo cáo ngay' },
 ];
 
 export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) => {
@@ -27,9 +27,9 @@ export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) 
 
   const handleSubmit = () => {
     if (!selected) return;
-    
-    const score = isCorrect ? 10 : 0;
-    
+
+    const score = isCorrect ? 5 : 0;
+
     updateState({
       score: { ...state.score, warehouse: score },
       selections: { ...state.selections, warehouseAnswer: selected },
@@ -41,7 +41,7 @@ export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) 
   return (
     <div className="w-full max-w-2xl mx-auto">
       <Card className="p-8 shadow-lg border-t-4 border-t-indigo-500 relative overflow-hidden">
-        
+
         {/* Background icon decoration */}
         <Server className="absolute -right-8 -bottom-8 text-slate-100 opacity-50" size={150} />
 
@@ -60,7 +60,7 @@ export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) 
 
           <div className="space-y-3 mb-8">
             {OPTIONS.map(opt => (
-              <div 
+              <div
                 key={opt.id}
                 onClick={() => {
                   if (!isSubmitted) {
@@ -70,8 +70,8 @@ export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) 
                 className={cn(
                   "p-4 rounded-lg border-2 transition-colors flex items-center gap-3",
                   !isSubmitted && "cursor-pointer hover:border-slate-300",
-                  selected === opt.id 
-                    ? "border-indigo-500 bg-indigo-50 font-medium text-indigo-900" 
+                  selected === opt.id
+                    ? "border-indigo-500 bg-indigo-50 font-medium text-indigo-900"
                     : "border-slate-200 text-slate-700",
                   showFeedback && selected === opt.id && !isCorrect && "border-red-500 bg-red-50 text-red-700",
                   showFeedback && selected === opt.id && isCorrect && "border-green-500 bg-green-50 text-green-700"
@@ -97,7 +97,7 @@ export const Screen4Warehouse = ({ state, updateState, nextStep }: ScreenProps) 
               <div>
                 <p className="font-semibold mb-1">{isCorrect ? 'Chính xác!' : 'Chưa hợp lý!'}</p>
                 <p className="text-sm">
-                  {isCorrect 
+                  {isCorrect
                     ? "Data Pipeline chỉ làm nhiệm vụ vận chuyển. Data Warehouse mới là nơi lưu trữ dữ liệu tập trung, được thiết kế tối ưu để sẵn sàng cho việc query phân tích lượng Data lớn."
                     : "Dữ liệu mới hút về còn thô, chưa kết nối và chưa được tối ưu. Cần có nơi lưu trữ trung gian chuyên biệt như Data Warehouse trước khi đưa lên dashboard."}
                 </p>

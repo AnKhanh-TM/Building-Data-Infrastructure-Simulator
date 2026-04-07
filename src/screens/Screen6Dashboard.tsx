@@ -12,19 +12,26 @@ interface ScreenProps {
 }
 
 const ALL_METRICS = [
-  { id: 'rev_channel', label: 'Revenue by Channel' },
-  { id: 'repeat_rate', label: 'Repeat Purchase Rate' },
-  { id: 'aov', label: 'Average Order Value (AOV)' },
-  { id: 'freq', label: 'Purchase Frequency' },
-  { id: 'segments', label: 'Top Customer Segments' },
-  { id: 'funnel', label: 'Funnel Conversion Rate' },
-  { id: 'time_between', label: 'Time Between Purchases' },
-  { id: 'voucher', label: 'Voucher Conversion Rate' },
-  { id: 'attendance', label: 'Employee Attendance' },
-  { id: 'uptime', label: 'Server Uptime' },
+  { id: 'rev_channel', label: 'Doanh thu theo kênh', correct: true, value: '850M' },
+  { id: 'repeat_rate', label: 'Tỷ lệ quay lại khách cũ', correct: true, value: '24.5%' },
+  { id: 'aov', label: 'Giá trị đơn TB (AOV)', correct: true, value: '1.2M' },
+  { id: 'freq', label: 'Tần suất mua hàng', correct: true, value: '2.4' },
+  { id: 'segments', label: 'Phân khúc KH chi tiêu cao', correct: true, value: '1,240' },
+  { id: 'funnel', label: 'Tỷ lệ chuyển đổi phễu', correct: true, value: '12.8%' },
+  { id: 'time_between', label: 'T.gian giữa 2 lần mua', correct: true, value: '45d' },
+  { id: 'voucher', label: 'Hiệu quả dùng Voucher', correct: true, value: '18.2%' },
+  { id: 'attendance', label: 'Chuyên cần của nhân viên', correct: false, value: '98%' },
+  { id: 'uptime', label: 'Thời gian server hoạt động', correct: false, value: '99.9%' },
+  { id: 'likes', label: 'Số lượng Like Fanpage', correct: false, value: '45.2K' },
+  { id: 'cpu', label: 'Tải lượng CPU hệ thống', correct: false, value: '42%' },
+  { id: 'wifi', label: 'Tốc độ Wifi cửa hàng', correct: false, value: '120Mbps' },
+  { id: 'printer', label: 'Trình trạng mực máy in', correct: false, value: 'OK' },
 ];
 
-const WRONG_METRICS = ['attendance', 'uptime'];
+const CORRECT_ADO = {
+  audience: 'marketing_manager',
+  breakdown: 'time_segment'
+};
 
 export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) => {
   const isSubmitted = state.submittedSteps.includes(6);
@@ -48,23 +55,33 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
       setError("Vui lòng chọn ít nhất 4 chỉ số (KPIs) quan trọng nhất.");
       return;
     }
-    
+
     if (!audience || !breakdown) {
-      setError("Vui lòng trả lời câu hỏi phụ về phân tích ADO bên dưới Dashboard.");
+      setError("Vui lòng trả lời câu hỏi phụ về phân tích bối cảnh bên dưới.");
       return;
     }
 
-    let wrongCount = 0;
-    selectedKPIs.forEach(kpi => {
-      if (WRONG_METRICS.includes(kpi)) wrongCount++;
+    // Scoring logic: +4 for correct KPI, -5 for incorrect KPI, +10 for correct ADO components
+    let kpiScore = 0;
+    selectedKPIs.forEach(id => {
+      const metric = ALL_METRICS.find(m => m.id === id);
+      if (metric?.correct) kpiScore += 4;
+      else kpiScore -= 5;
     });
 
-    let score = Math.max(20 - (wrongCount * 5), 0);
+    let adoScore = 0;
+    if (audience === CORRECT_ADO.audience) adoScore += 10;
+    else adoScore -= 5;
+
+    if (breakdown === CORRECT_ADO.breakdown) adoScore += 10;
+    else adoScore -= 5;
+
+    const totalScore = Math.min(40, Math.max(0, kpiScore + adoScore));
 
     updateState({
-      score: { ...state.score, dashboard: score },
+      score: { ...state.score, dashboard: totalScore },
       selections: {
-        ...state.selections, 
+        ...state.selections,
         dashboardKPIs: selectedKPIs,
         dashboardADO: { audience, breakdown }
       },
@@ -74,38 +91,38 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-6">
-      
+    <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
+
       {/* Left side: Metrics Selection */}
-      <div className="w-full md:w-1/3 space-y-4">
+      <div className="w-full md:w-1/3 flex flex-col">
         <div className="mb-4">
           <span className="inline-block px-3 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full mb-2 uppercase tracking-wider">
             Bước 5: Output
           </span>
-          <h2 className="text-xl font-bold text-slate-800">Chọn Chỉ Số (KPIs)</h2>
-          <p className="text-sm text-slate-600">Click để đưa vào Dashboard</p>
+          <h2 className="text-xl font-bold text-slate-800 leading-tight">Thiết kế Dashboard</h2>
+          <p className="text-xs text-slate-500 mt-1 font-medium">Click để đưa chỉ số vào Dashboard. Hãy cẩn thận với cái bẫy "số liệu rác"!</p>
         </div>
 
-        <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 pb-4">
+        <div className="space-y-1.5 max-h-[550px] overflow-y-auto pr-2 pb-4 scrollbar-thin scrollbar-thumb-slate-200">
           {ALL_METRICS.map(metric => {
             const isSelected = selectedKPIs.includes(metric.id);
             return (
-              <div 
+              <div
                 key={metric.id}
                 onClick={() => toggleKPI(metric.id)}
                 className={cn(
-                  "p-3 border rounded-lg transition text-sm flex justify-between items-center group",
-                  isSelected 
-                    ? "border-rose-300 bg-rose-50 text-rose-900 font-medium" 
-                    : "border-slate-200 bg-white hover:border-rose-200 hover:bg-slate-50 text-slate-700",
+                  "p-2.5 border rounded-lg transition-all text-xs flex justify-between items-center group",
+                  isSelected
+                    ? "border-rose-400 bg-rose-50 text-rose-900 font-bold shadow-sm"
+                    : "border-slate-200 bg-white hover:border-rose-200 hover:bg-slate-50 text-slate-600",
                   !isSubmitted ? "cursor-pointer" : "cursor-default"
                 )}
               >
                 {metric.label}
                 {isSelected ? (
-                  <MinusCircle size={18} className="text-rose-500" />
+                  <MinusCircle size={14} className="text-rose-500" />
                 ) : (
-                  <PlusCircle size={18} className="text-slate-400 group-hover:text-rose-400" />
+                  <PlusCircle size={14} className="text-slate-300 group-hover:text-rose-400" />
                 )}
               </div>
             );
@@ -114,33 +131,48 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
       </div>
 
       {/* Right side: Dashboard Preview */}
-      <div className="w-full md:w-2/3 flex flex-col">
-        <Card className="flex-1 bg-slate-100/50 border-2 border-dashed border-slate-300 flex flex-col p-4 shadow-inner relative min-h-[400px]">
-          <div className="flex items-center gap-2 text-slate-500 mb-6 pb-4 border-b border-slate-200">
-            <LayoutDashboard size={24} />
-            <span className="font-semibold text-lg">Customer Behavior Dashboard</span>
+      <div className="w-full md:w-2/3 flex flex-col gap-4">
+        <Card className="flex-1 bg-slate-900 border-4 border-slate-800 flex flex-col p-6 shadow-2xl relative min-h-[450px] rounded-3xl overflow-hidden">
+          {/* Cyber Styling */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent opacity-50" />
+
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800">
+            <div className="flex items-center gap-3 text-slate-300">
+              <LayoutDashboard size={22} className="text-rose-500" />
+              <span className="font-bold text-sm tracking-widest uppercase">Performance Monitor v1.0</span>
+            </div>
+            <div className="flex gap-1">
+              <div className="w-2 h-2 rounded-full bg-slate-700" />
+              <div className="w-2 h-2 rounded-full bg-slate-700" />
+              <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+            </div>
           </div>
 
           {selectedKPIs.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-              <BarChart3 size={48} className="mb-4 opacity-50" />
-              <p>Chưa có chỉ số nào được chọn</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
+              <BarChart3 size={64} className="mb-4 opacity-20" />
+              <p className="text-sm font-medium uppercase tracking-tighter">Hệ thống đang chờ chỉ số...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 auto-rows-max">
               {selectedKPIs.map(id => {
                 const mst = ALL_METRICS.find(m => m.id === id);
-                const isWrong = showFeedback && WRONG_METRICS.includes(id);
+                const isWrong = showFeedback && !mst?.correct;
                 return (
                   <div key={id} className={cn(
-                    "p-4 rounded-xl shadow-sm border flex flex-col justify-between h-24 animate-in zoom-in-95 duration-200",
-                    isWrong ? "bg-red-50 border-red-200" : "bg-white border-slate-200"
+                    "p-3 rounded-xl border flex flex-col justify-between h-24 transition-all duration-500 animate-in zoom-in-95",
+                    isWrong ? "bg-red-950/30 border-red-900/50" : "bg-slate-800/50 border-slate-700/50 shadow-inner"
                   )}>
                     <div className="flex justify-between items-start">
-                      <span className="text-xs font-semibold text-slate-500 truncate leading-tight">{mst?.label}</span>
-                      {isWrong && <div className="w-2 h-2 bg-red-500 rounded-full shrink-0" />}
+                      <span className={cn("text-[10px] font-bold tracking-tight uppercase", isWrong ? "text-red-400" : "text-slate-400")}>
+                        {mst?.label}
+                      </span>
+                      {isWrong && <div className="text-[8px] bg-red-600 text-white px-1.5 rounded-full font-black">X</div>}
                     </div>
-                    <div className="h-6 w-1/2 bg-slate-100 rounded mt-auto" />
+                    <div className="flex items-end justify-between">
+                      <span className="text-xl font-black text-white font-mono tracking-tighter">{mst?.value}</span>
+                      <div className="w-8 h-1 bg-slate-700 rounded-full mb-2" />
+                    </div>
                   </div>
                 );
               })}
@@ -149,40 +181,48 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
         </Card>
 
         {/* Framework ADO Questions */}
-        <Card className="mt-4 p-5 shadow-sm border-blue-200 bg-blue-50/50">
-          <h3 className="font-bold text-slate-800 mb-4 text-sm flex items-center gap-2">
-            <span className="bg-blue-600 text-white w-5 h-5 rounded-full inline-flex items-center justify-center text-xs">?</span>
-            Phân tích bối cảnh (Framework ADO)
+        <Card className="p-5 shadow-lg border-slate-200 bg-white rounded-2xl">
+          <h3 className="font-black text-slate-800 mb-5 text-sm flex items-center gap-3">
+            <div className="bg-slate-800 text-white w-6 h-6 rounded-lg flex items-center justify-center shadow-md">?</div>
+            PHÂN TÍCH BỐI CẢNH
           </h3>
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Dashboard này ưu tiên thiết kế cho ai xem? (Audience)
+              <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">
+                AI SẼ XEM BÁO CÁO NÀY? (AUDIENCE)
               </label>
-              <select 
+              <select
                 value={audience} onChange={(e) => setAudience(e.target.value)}
-                className={cn("w-full text-sm p-2 rounded border border-blue-200 bg-white", isSubmitted && "bg-slate-50 cursor-not-allowed")}
+                className={cn(
+                  "w-full text-xs font-bold p-3 rounded-xl border transition-all outline-none",
+                  isSubmitted ? "bg-slate-50 border-slate-200" : "bg-white border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-50"
+                )}
                 disabled={isSubmitted}
               >
-                <option value="">-- Chọn đối tượng --</option>
-                <option value="marketing_manager">Marketing/Sales Manager</option>
-                <option value="data_engineer">Data Engineer</option>
-                <option value="accounting">Nhân viên Kế toán</option>
+                <option value="">-- CHỌN ĐỐI TƯỢNG --</option>
+                <option value="marketing_manager">Marketing/Sales Manager (Chiến lược)</option>
+                <option value="data_engineer">Data Engineer (Kỹ thuật hệ thống)</option>
+                <option value="accounting">Kế toán trưởng (Đối soát dòng tiền)</option>
+                <option value="it_admin">IT Admin (Quản trị hạ tầng)</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Góc nhìn (Breakdown) quan trọng nhất muốn xem là gì?
+              <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">
+                GÓC NHÌN CHỦ ĐẠO LÀ GÌ? (BREAKDOWN)
               </label>
-              <select 
+              <select
                 value={breakdown} onChange={(e) => setBreakdown(e.target.value)}
-                className={cn("w-full text-sm p-2 rounded border border-blue-200 bg-white", isSubmitted && "bg-slate-50 cursor-not-allowed")}
+                className={cn(
+                  "w-full text-xs font-bold p-3 rounded-xl border transition-all outline-none",
+                  isSubmitted ? "bg-slate-50 border-slate-200" : "bg-white border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-50"
+                )}
                 disabled={isSubmitted}
               >
-                <option value="">-- Chọn góc nhìn --</option>
-                <option value="time_segment">Thời gian & Phân khúc KH (Segments)</option>
-                <option value="ip_address">Địa chỉ IP của KH</option>
-                <option value="server_load">Trạng thái chịu tải của Data Warehouse</option>
+                <option value="">-- CHỌN GÓC NHÌN --</option>
+                <option value="time_segment">Thời gian & Phân khúc khách hàng</option>
+                <option value="ip_address">Phân bố địa chỉ IP người dùng</option>
+                <option value="server_load">Tỉ lệ chiếm dụng bộ nhớ RAM</option>
+                <option value="printer_status">Lượng giấy in còn lại trong kho</option>
               </select>
             </div>
           </div>
@@ -190,36 +230,36 @@ export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) 
 
         {showFeedback && (
           <div className={cn(
-            "mt-4 p-4 rounded-lg text-sm border",
-            selectedKPIs.some(k => WRONG_METRICS.includes(k)) || audience !== 'marketing_manager' || breakdown !== 'time_segment'
-              ? "bg-amber-50 text-amber-800 border-amber-200" 
-              : "bg-green-50 text-green-800 border-green-200"
+            "p-5 rounded-2xl text-sm border-2 animate-in slide-in-from-bottom-4 duration-500 shadow-xl",
+            selectedKPIs.some(k => !ALL_METRICS.find(m => m.id === k)?.correct) || audience !== CORRECT_ADO.audience || breakdown !== CORRECT_ADO.breakdown
+              ? "bg-amber-50 text-amber-950 border-amber-200"
+              : "bg-green-50 text-green-950 border-green-200"
           )}>
-            <p className="font-bold mb-1">Giải thích:</p>
-            <ul className="list-disc pl-4 space-y-1">
-              <li>KPIs: Các chỉ số vận hành server (Uptime) hay nhân sự (Attendance) không giải quyết mục tiêu hiểu hành vi mua hàng.</li>
-              <li>ADO: Để tối ưu marketing, manager cần Breakdown theo Phân khúc và Thời gian để thấy xu hướng.</li>
-            </ul>
+            <div className="flex items-center gap-2 mb-3">
+              <div className={cn("w-2 h-6 rounded-full", (selectedKPIs.some(k => !ALL_METRICS.find(m => m.id === k)?.correct) || audience !== CORRECT_ADO.audience || breakdown !== CORRECT_ADO.breakdown) ? "bg-amber-500" : "bg-green-500")} />
+              <h4 className="font-black uppercase tracking-tighter">Phân tích từ Mentor:</h4>
+            </div>
+            <p className="text-xs leading-relaxed font-medium">
+              Dashboard này được thiết kế để giải quyết bài toán của <strong>Marketing Manager</strong>. Vì vậy, các chỉ số về hạ tầng kỹ thuật (CPU, Server Uptime) hay vận hành phụ (Wifi, Chuyên cần) đều là <strong>"Rác dữ liệu"</strong> trong bối cảnh này. Một Dashboard tốt chỉ tập trung vào các chỉ số thúc đẩy hành vi mua hàng và cần được breakdown theo <strong>Thời gian/Phân khúc</strong> để thấy xu hưỡng.
+            </p>
           </div>
         )}
 
         {error && (
-          <div className="mt-4 text-sm text-red-600 font-medium bg-red-50 p-2 rounded px-3 border border-red-200">
+          <div className="text-xs text-red-600 font-bold bg-red-50 p-3 rounded-xl border-2 border-red-200 animate-bounce">
             {error}
           </div>
         )}
 
-        <div className="mt-4 flex justify-end">
-          {!isSubmitted ? (
-            <Button onClick={handleSubmit} size="lg" className="px-8 shadow-md hover:shadow-lg gap-2">
-              Nộp bài <ArrowRight size={20} />
-            </Button>
-          ) : (
-            <Button onClick={nextStep} size="lg" className="px-8 shadow-md hover:shadow-lg bg-green-600 hover:bg-green-700 gap-2">
-              Hoàn thành dự án <CheckCircle2 size={20} />
-            </Button>
-          )}
-        </div>
+        {!isSubmitted ? (
+          <Button onClick={handleSubmit} size="lg" className="h-16 rounded-2xl shadow-xl hover:shadow-brand-200 transition-all gap-3 bg-brand-600 hover:bg-brand-700 font-black tracking-widest uppercase">
+            XUẤT BẢN DASHBOARD <ArrowRight size={20} />
+          </Button>
+        ) : (
+          <Button onClick={nextStep} size="lg" className="h-16 rounded-2xl shadow-xl bg-green-600 hover:bg-green-700 transition-all gap-3 font-black tracking-widest uppercase">
+            HOÀN THÀNH DỰ ÁN <CheckCircle2 size={24} />
+          </Button>
+        )}
       </div>
     </div>
   );
