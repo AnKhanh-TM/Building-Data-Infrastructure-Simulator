@@ -1,113 +1,166 @@
-import React, { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { ArrowRight, Building2, Mail, User } from 'lucide-react';
 import type { GameState } from '../types/game';
-import { Card } from '../components/ui/Card';
+import { BUSINESS_QUESTIONS } from '../lib/constants';
 import { Button } from '../components/ui/Button';
-import { User, KeyRound, ArrowRight, Target } from 'lucide-react';
+import { Card } from '../components/ui/Card';
+import { cn } from '../lib/utils';
 
-interface ScreenProps {
-  state: GameState;
-  updateState: (updates: Partial<GameState>) => void;
-  nextStep: () => void;
-}
-
-export const Screen1Welcome = ({ state, updateState, nextStep }: ScreenProps) => {
+export const Screen1Welcome = ({ state, updateState, nextStep, register }: {
+  state: GameState; updateState: (value: Partial<GameState>) => void; nextStep: () => void;
+  register: (profile: GameState['profile']) => void;
+}) => {
   const [name, setName] = useState(state.profile.name);
-  const [classCode, setClassCode] = useState(state.profile.classCode);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [email, setEmail] = useState(state.profile.email);
+  const [classNumber, setClassNumber] = useState(state.profile.classCode.replace('AISYS', ''));
+  const [question, setQuestion] = useState(state.selections.businessQuestion);
+  const [registered, setRegistered] = useState(Boolean(state.submission.id));
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !classCode.trim()) return;
-
-    updateState({
-      profile: { name: name.trim(), classCode: classCode.trim() },
-      score: { ...state.score, info: 0 } // No points for info anymore
-    });
-    setIsSubmitted(true);
+  const submitProfile = (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || !/^\d{2}$/.test(classNumber)) {
+      setError('Vui lòng nhập đủ họ tên, email hợp lệ và đúng 2 chữ số mã lớp.');
+      return;
+    }
+    register({ name: name.trim(), email: email.trim().toLowerCase(), classCode: `AISYS${classNumber}` });
+    setRegistered(true);
   };
 
+  const QUESTION_EXPLANATIONS: Record<string, { correct: boolean; text: string }> = {
+    quality_channel: {
+      correct: true,
+      text: "Chính xác! Đây là câu hỏi nghiệp vụ rất gần với doanh thu thực tế (Revenue) và mức độ giữ chân khách hàng (Retention), giúp doanh nghiệp trực tiếp tối ưu hóa ngân sách Marketing & Sales."
+    },
+    most_clicks: {
+      correct: false,
+      text: "Lượt click chỉ là chỉ số tương tác (Vanity Metric). Nhiều click không đồng nghĩa với việc khách hàng sẽ mua hàng hoặc quay lại, do đó không giúp tối ưu ngân sách thật."
+    },
+    server_speed: {
+      correct: false,
+      text: "Đây là câu hỏi mang tính hạ tầng kỹ thuật (IT/Infrastructure). Dù quan trọng cho hệ thống vận hành nhưng nó không giải quyết trực tiếp bài toán tối ưu ngân sách Marketing & Sales."
+    },
+    all_dashboard: {
+      correct: false,
+      text: "Lập dashboard 'tổng hợp tất cả' là sai lầm phổ biến. Khi chưa rõ câu hỏi cần trả lời, bạn sẽ tạo ra một báo cáo khổng lồ gây loãng thông tin, lãng phí thời gian và khó ra quyết định."
+    }
+  };
+
+  const submitted = state.submittedSteps.includes(1);
+
+  const submitQuestion = () => {
+    if (!question) return;
+    const score = question === 'quality_channel' ? 10 : 0;
+    updateState({
+      score: { ...state.score, businessQuestion: score },
+      selections: { ...state.selections, businessQuestion: question },
+      submittedSteps: [...new Set([...state.submittedSteps, 1])],
+    });
+  };
+
+  if (!registered) return (
+    <Card className="mx-auto max-w-2xl overflow-hidden shadow-xl">
+      <div className="bg-slate-900 p-8 text-white">
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-brand-300">Case Study</p>
+        <h2 className="text-3xl font-black">RetailCo đang tăng trưởng chậm</h2>
+        <p className="mt-4 text-sm leading-relaxed text-slate-300">Dữ liệu nằm rải rác giữa Ads, GA4, CRM, Order System, Email và POS. Các team tranh luận bằng những KPI khác nhau, trong khi ngân sách marketing vẫn đang target dàn trải.</p>
+      </div>
+      <form onSubmit={submitProfile} className="space-y-4 p-8">
+        <h3 className="text-xl font-bold">Thông tin học viên</h3>
+        {error && <p className="rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
+        <Field icon={<User size={18} />} label="Họ và tên"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nguyễn Văn A" className="field-input" /></Field>
+        <Field icon={<Mail size={18} />} label="Email đăng ký với TM"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@example.com" className="field-input" /></Field>
+        <Field icon={<Building2 size={18} />} label="Mã lớp">
+          <div className="flex"><span className="rounded-l-lg border border-r-0 border-slate-300 bg-slate-100 px-4 py-3 font-bold text-slate-600">AISYS</span><input inputMode="numeric" maxLength={2} value={classNumber} onChange={(e) => setClassNumber(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="01" className="field-input rounded-l-none" /></div>
+        </Field>
+        <Button type="submit" size="lg" className="w-full gap-2">Vào case <ArrowRight size={20} /></Button>
+      </form>
+    </Card>
+  );
+
   return (
-    <div className="w-full max-w-xl mx-auto">
-      {!isSubmitted ? (
-        <Card className="p-8 shadow-xl border-t-4 border-t-brand-500">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-extrabold text-slate-800 mb-2">Build Your Data System</h2>
-            <p className="text-slate-500">Thử thách xây dựng Data Infrastructure</p>
-          </div>
+    <div className="mx-auto max-w-4xl">
+      <div className="mb-6 text-center"><p className="text-xs font-bold uppercase tracking-widest text-brand-600">10 điểm</p><h2 className="text-3xl font-black">Bạn phải bắt đầu từ đâu?</h2><p className="mt-2 text-slate-600">Chọn một business question đủ gần revenue để làm use case MVP đầu tiên.</p></div>
+      
+      <div className="grid gap-3">
+        {BUSINESS_QUESTIONS.map((item) => {
+          const isSelected = question === item.id;
+          const isCorrectAnswer = item.id === 'quality_channel';
+          
+          let cardStyle = 'border-slate-200 hover:border-brand-200';
+          if (isSelected && !submitted) {
+            cardStyle = 'border-brand-500 bg-brand-50';
+          } else if (submitted) {
+            if (isCorrectAnswer) {
+              cardStyle = 'border-green-500 bg-green-50/40 text-green-900';
+            } else if (isSelected) {
+              cardStyle = 'border-red-500 bg-red-50/40 text-red-900';
+            } else {
+              cardStyle = 'border-slate-100 opacity-50 bg-slate-50/10 text-slate-400';
+            }
+          }
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Họ và Tên
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <User size={18} />
-                  </div>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors outline-none text-slate-800"
-                    placeholder="VD: Nguyễn Văn A"
-                    required
-                  />
+          return (
+            <button 
+              key={item.id} 
+              disabled={submitted}
+              onClick={() => setQuestion(item.id)} 
+              className={cn(
+                'rounded-xl border-2 bg-white p-5 text-left font-semibold transition flex justify-between items-center w-full',
+                cardStyle
+              )}
+            >
+              <span>{item.label}</span>
+              {submitted && (
+                <div className="flex gap-2">
+                  {isCorrectAnswer && (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-green-600">
+                      {isSelected ? 'Đúng (Đáp án)' : 'Đáp án đúng'}
+                    </span>
+                  )}
+                  {isSelected && !isCorrectAnswer && (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-red-600">
+                      Bạn chọn - Sai
+                    </span>
+                  )}
                 </div>
-              </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Mã Lớp
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <KeyRound size={18} />
-                  </div>
-                  <input
-                    type="text"
-                    value={classCode}
-                    onChange={(e) => setClassCode(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-colors outline-none text-slate-800"
-                    placeholder="VD: ABC01"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Button type="submit" size="lg" className="w-full flex items-center gap-2 text-lg mt-4">
-              Bắt đầu thử thách <ArrowRight size={20} />
-            </Button>
-          </form>
-        </Card>
-      ) : (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Card className="p-8 shadow-xl bg-gradient-to-br from-white to-brand-50 border-brand-200">
-            <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center shadow-inner">
-                <Target size={32} />
-              </div>
-            </div>
-
-            <div className="text-center space-y-4 mb-8">
-              <h3 className="text-sm font-bold tracking-widest text-brand-600 uppercase">Business Objective</h3>
-              <p className="text-2xl font-semibold text-slate-800 leading-snug">
-                Doanh nghiệp muốn: <br />
-                <span className="text-brand-700">"Hiểu rõ thói quen mua hàng của khách hàng để đưa ra chiến lược marketing & sales hiệu quả hơn."</span>
-              </p>
-            </div>
-
-            <div className="bg-white/60 p-4 rounded-lg border border-brand-100 text-slate-600 text-center mb-8 text-sm">
-              Nhiệm vụ của bạn là xây dựng một Data Infrastructure từ đầu đến cuối để giải quyết được bài toán kinh doanh này.
-            </div>
-
-            <Button onClick={nextStep} size="lg" className="w-full flex items-center gap-2 text-lg shadow-lg shadow-brand-500/20">
-              Tiếp tục <ArrowRight size={20} />
-            </Button>
-          </Card>
+      {submitted && question && (
+        <div className={cn(
+          'mt-6 p-5 rounded-xl border text-sm leading-relaxed animate-fadeIn',
+          QUESTION_EXPLANATIONS[question].correct 
+            ? 'bg-green-50 border-green-200 text-green-800' 
+            : 'bg-red-50 border-red-200 text-red-800'
+        )}>
+          <p className="font-bold mb-1">
+            {QUESTION_EXPLANATIONS[question].correct ? '✅ Hoàn toàn chính xác!' : '❌ Chưa chính xác!'}
+          </p>
+          <p>{QUESTION_EXPLANATIONS[question].text}</p>
         </div>
       )}
+
+      <div className="mt-8 flex justify-center">
+        {submitted ? (
+          <Button onClick={nextStep} size="lg" className="gap-2 bg-brand-600 hover:bg-brand-700 text-white shadow">
+            <span>Bước tiếp theo</span>
+            <ArrowRight size={20} />
+          </Button>
+        ) : (
+          <Button onClick={submitQuestion} disabled={!question} size="lg" className="gap-2">
+            <span>Chốt Business Question</span>
+            <ArrowRight size={20} />
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
+
+const Field = ({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) => (
+  <label className="block"><span className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-700">{icon}{label}</span>{children}</label>
+);

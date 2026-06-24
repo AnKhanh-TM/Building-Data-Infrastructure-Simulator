@@ -1,73 +1,47 @@
-# React + TypeScript + Vite
+# Data System Builder
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Game thực hành cho học viên AI Marketing & Sales System, bám theo flow:
 
-Currently, two official plugins are available:
+`Business Question → Data Sources → Pipeline → Warehouse → Data Model → Dashboard → Decision`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Chạy local
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+copy .env.example .env.local
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Nếu chưa cấu hình webhook, game vẫn hoạt động và lưu bài trên trình duyệt.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Kết nối Google Sheets
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. Tạo một Google Sheet mới.
+2. Mở `Extensions → Apps Script`.
+3. Dán nội dung [google-apps-script/Code.gs](google-apps-script/Code.gs) vào `Code.gs`.
+4. Chọn `Deploy → New deployment → Web app`.
+5. Đặt `Execute as: Me` và `Who has access: Anyone`.
+6. Deploy, cấp quyền và sao chép URL kết thúc bằng `/exec`.
+7. Đặt biến môi trường:
+
+```env
+VITE_GOOGLE_SHEETS_WEBHOOK_URL=https://script.google.com/macros/s/DEPLOYMENT_ID/exec
+```
+
+Trên Vercel, thêm biến này trong `Project Settings → Environment Variables`, sau đó redeploy.
+
+Apps Script tự tạo tab `Game Submissions` và header khi nhận request đầu tiên. Khóa cập nhật là `email + mã lớp`, nên refresh hoặc gửi lại không tạo thêm dòng. Một dòng được tạo lúc học viên bắt đầu và cập nhật điểm khi hoàn thành.
+
+## Dữ liệu ghi nhận
+
+- Họ tên, email, mã lớp.
+- Thời gian bắt đầu và hoàn thành.
+- Trạng thái, tổng điểm, điểm từng phần và xếp hạng.
+- Số lần làm và submission ID gần nhất.
+
+## Kiểm tra
+
+```bash
+npm run lint
+npm run build
 ```

@@ -1,227 +1,61 @@
 import { useState } from 'react';
+import { ArrowRight, Link2, Lightbulb } from 'lucide-react';
 import type { GameState } from '../types/game';
-import { Card } from '../components/ui/Card';
+import { CORRECT_MODEL_CONNECTIONS, MODEL_TABLES } from '../lib/constants';
 import { Button } from '../components/ui/Button';
-import { Network, AlertCircle, Unlink, Link2, ArrowRight } from 'lucide-react';
+import { Card } from '../components/ui/Card';
 import { cn } from '../lib/utils';
 
-interface ScreenProps {
-  state: GameState;
-  updateState: (updates: Partial<GameState>) => void;
-  nextStep: () => void;
-}
+const CONNECTIONS = [
+  ...CORRECT_MODEL_CONNECTIONS,
+  'dim_customer.customer_id>dim_product.product_id',
+  'fact_orders.order_id>dim_customer.customer_id',
+  'dim_channel.campaign>dim_product.category',
+];
 
-const TABLES = {
-  customer: {
-    name: 'Customer Table',
-    columns: ['customer_id', 'age', 'gender', 'location'],
-  },
-  orders: {
-    name: 'Orders Table',
-    columns: ['order_id', 'customer_id', 'product_id', 'order_value'],
-  },
-  product: {
-    name: 'Product Table',
-    columns: ['product_id', 'product_name', 'category'],
-  }
-};
+export const Screen5DataModel = ({ state, updateState, nextStep }: Props) => {
+  const submitted = state.submittedSteps.includes(5);
+  const [selected, setSelected] = useState(state.selections.modelConnections);
+  const [showHint, setShowHint] = useState(false);
 
-type Node = { table: string; column: string };
-type Connection = { source: Node; target: Node; id: number };
-
-export const Screen5DataModel = ({ state, updateState, nextStep }: ScreenProps) => {
-  const isSubmitted = state.submittedSteps.includes(5);
-  const [activeNode, setActiveNode] = useState<Node | null>(null);
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(
-    isSubmitted ? { type: 'success', msg: 'Chính xác! Cấu trúc Data Model dạng Star Schema (1 Fact - 2 Dims) đã hoàn thành.' } : null
-  );
-
-  const handleNodeClick = (table: string, column: string) => {
-    if (isSubmitted) return;
-    // Check if the node is already connected
-    const existingConn = connections.find(c => 
-      (c.source.table === table && c.source.column === column) ||
-      (c.target.table === table && c.target.column === column)
-    );
-
-    if (existingConn) {
-      // Disconnect
-      setConnections(prev => prev.filter(c => c.id !== existingConn.id));
-      setFeedback(null);
-      return;
-    }
-
-    if (!activeNode) {
-      setActiveNode({ table, column });
-      setFeedback(null);
-    } else {
-      // If clicking same table, swap active node
-      if (activeNode.table === table) {
-        setActiveNode({ table, column });
-      } else {
-        // Create connection
-        const newConn: Connection = {
-          id: Date.now(),
-          source: activeNode,
-          target: { table, column }
-        };
-        setConnections(prev => [...prev, newConn]);
-        setActiveNode(null);
-      }
-    }
+  const toggle = (id: string) => setSelected(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  
+  const submit = () => {
+    const correct = selected.filter((x) => CORRECT_MODEL_CONNECTIONS.includes(x)).length;
+    const wrong = selected.length - correct;
+    updateState({ score: { ...state.score, dataModel: Math.round(Math.max(0, Math.min(20, correct * 6.67 - wrong * 3))) }, selections: { ...state.selections, modelConnections: selected }, submittedSteps: [...new Set([...state.submittedSteps, 5])] });
   };
 
-  const getConnectionIndex = (table: string, column: string) => {
-    return connections.findIndex(c => 
-      (c.source.table === table && c.source.column === column) ||
-      (c.target.table === table && c.target.column === column)
-    );
-  };
-
-  const validateModel = () => {
-    if (isSubmitted) return;
-    
-    let hasCustomerLink = false;
-    let hasProductLink = false;
-    let hasInvalidLinks = false;
-
-    connections.forEach(c => {
-      const nodes = [
-        `${c.source.table}.${c.source.column}`,
-        `${c.target.table}.${c.target.column}`
-      ];
-
-      const isCustomerLink = nodes.includes('orders.customer_id') && nodes.includes('customer.customer_id');
-      const isProductLink = nodes.includes('orders.product_id') && nodes.includes('product.product_id');
-
-      if (isCustomerLink) hasCustomerLink = true;
-      else if (isProductLink) hasProductLink = true;
-      else hasInvalidLinks = true;
-    });
-
-    const isPerfect = !hasInvalidLinks && hasCustomerLink && hasProductLink;
-    const score = isPerfect ? 20 : 0;
-
-    if (!isPerfect) {
-      setFeedback({
-        type: 'error',
-        msg: 'Cấu trúc chưa chính xác! Đáp án đúng: Phải nối Orders(customer_id) với Customer(customer_id) và Orders(product_id) với Product(product_id).'
-      });
-    } else {
-      setFeedback({
-        type: 'success',
-        msg: 'Chính xác! Cấu trúc Data Model dạng Star Schema (1 Fact - 2 Dims) đã hoàn thành.'
-      });
-    }
-
-    updateState({
-      score: { ...state.score, dataModel: score },
-      selections: { ...state.selections, modelConnections: { connected: isPerfect ? 'true' : 'false' } },
-      submittedSteps: [...state.submittedSteps, 5]
-    });
-  };
-
-  const connectionColors = ['bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500'];
-
-  return (
-    <div className="w-full max-w-5xl mx-auto">
-      <div className="text-center mb-6">
-        <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full mb-3 uppercase tracking-wider">
-          Bước 4: Data Model
-        </span>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Kết nối các bảng dữ liệu</h2>
-        <p className="text-slate-600">
-          Ôi không! Sau khi đưa vào Warehouse, các bảng đang bị rời rạc. <br/>
-          Click vào <strong>tên cột</strong> của 2 bảng để tạo liên kết logic.
-        </p>
-      </div>
-
-      {feedback && (
-        <div className={cn(
-          "mb-6 px-4 py-3 rounded-lg flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-400",
-          feedback.type === 'error' ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"
-        )}>
-          {feedback.type === 'error' ? <AlertCircle size={20} /> : <Network size={20} />}
-          <span className="font-medium">{feedback.msg}</span>
-        </div>
-      )}
-
-      {/* Tables Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-        {(Object.keys(TABLES) as Array<keyof typeof TABLES>).map((tableKey) => {
-          const table = TABLES[tableKey];
-          return (
-            <Card key={tableKey} className={cn("overflow-hidden shadow-md border-slate-200", isSubmitted && "opacity-90")}>
-              <div className="bg-slate-800 text-white font-semibold py-3 px-4 flex items-center gap-2">
-                <DatabaseIcon table={tableKey} />
-                {table.name}
-              </div>
-              <div className="p-2">
-                {table.columns.map(col => {
-                  const connIdx = getConnectionIndex(tableKey, col);
-                  const isConnected = connIdx !== -1;
-                  const isActive = activeNode?.table === tableKey && activeNode?.column === col;
-                  const colorClass = isConnected ? connectionColors[connIdx % connectionColors.length] : '';
-
-                  return (
-                    <div 
-                      key={col}
-                      onClick={() => handleNodeClick(tableKey, col)}
-                      className={cn(
-                        "flex justify-between items-center px-4 py-2 my-1 rounded cursor-pointer transition-all border",
-                        isActive ? "bg-brand-50 border-brand-400 ring-1 ring-brand-400 shadow-sm" : 
-                        isConnected ? "bg-slate-50 border-slate-200 font-semibold" : 
-                        "border-transparent hover:bg-slate-100 text-slate-700",
-                        isSubmitted && "cursor-default hover:bg-transparent"
-                      )}
-                    >
-                      <span className={cn("font-mono text-sm", isConnected && "text-brand-700")}>
-                        {col}
-                      </span>
-                      
-                      {isConnected && (
-                        <div className={cn("flex items-center gap-1 text-xs font-bold text-white px-2 py-0.5 rounded-full shadow-sm", colorClass)}>
-                          <Link2 size={12} />
-                          Nối {connIdx + 1}
-                        </div>
-                      )}
-
-                      {isActive && !isSubmitted && !isConnected && (
-                        <div className="w-2.5 h-2.5 bg-brand-500 rounded-full animate-ping" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <div className="flex justify-center flex-col items-center gap-4 border-t border-slate-100 pt-6">
-        {!isSubmitted ? (
-          <>
-            <p className="text-sm text-slate-500">
-              <Unlink size={16} className="inline mr-1" />
-              Click lại vào một cột đã nối để huỷ kết nối
-            </p>
-            <Button onClick={validateModel} size="lg" className="px-10 gap-2">
-              Nộp bài <ArrowRight size={20} />
-            </Button>
-          </>
-        ) : (
-          <Button onClick={nextStep} size="lg" className="px-10 gap-2 bg-green-600 hover:bg-green-700">
-            Tiếp tục <ArrowRight size={20} />
-          </Button>
-        )}
-      </div>
+  return <div className="mx-auto max-w-6xl">
+    <div className="mb-6 text-center">
+      <p className="text-xs font-bold uppercase tracking-widest text-brand-600">20 điểm</p>
+      <h2 className="text-3xl font-black">Hoàn thiện Star Schema</h2>
+      <p className="mt-2 text-slate-600">Fact Orders nằm ở trung tâm. Chọn tất cả quan hệ khóa đúng và tránh nối các dimensions tùy tiện.</p>
     </div>
-  );
+
+    <div className="flex justify-center mb-5">
+      <button 
+        onClick={() => setShowHint(!showHint)}
+        className="flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-800 bg-brand-50 px-3 py-1.5 rounded-lg border border-brand-100 transition shadow-sm"
+      >
+        <Lightbulb size={14} />
+        <span>Gợi ý tư duy</span>
+      </button>
+    </div>
+
+    {showHint && (
+      <div className="mb-6 rounded-xl bg-amber-50/80 border border-amber-200/60 p-4 text-xs leading-relaxed text-amber-900 max-w-4xl mx-auto animate-fadeIn space-y-2">
+        <p><strong>1. Mô hình hình Sao (Star Schema):</strong> Bảng Fact <code>fact_orders</code> (chứa các chỉ số đo lường như doanh thu) phải nằm ở tâm ngôi sao. Các bảng Dimension <code>dim_...</code> (chứa thuộc tính mô tả như thông tin khách hàng, sản phẩm, chiến dịch) bao quanh ngôi sao.</p>
+        <p><strong>2. Nguyên tắc kết nối:</strong> Chỉ kết nối từ <strong>Fact → Dimension</strong> thông qua các khóa định danh tương ứng có mặt ở cả 2 bảng (ví dụ: trường <code>customer_id</code> ở bảng Fact nối tới <code>customer_id</code> ở bảng Dimension).</p>
+        <p><strong>3. Tránh nối chéo các Dimension:</strong> Không bao giờ nối trực tiếp Dimension này với Dimension khác (ví dụ: không nối Customer trực tiếp sang Product) vì giữa chúng không có liên kết giao dịch trực tiếp, liên kết như vậy sẽ phá vỡ mô hình sao.</p>
+      </div>
+    )}
+
+    <div className="grid gap-4 md:grid-cols-4">{Object.entries(MODEL_TABLES).map(([table, columns]) => <Card key={table} className={cn('overflow-hidden', table === 'fact_orders' && 'border-brand-400 ring-2 ring-brand-100')}><div className="bg-slate-900 p-3 text-sm font-black uppercase text-white">{table}</div><div className="p-3">{columns.map((column) => <p key={column} className="border-b border-slate-100 py-2 font-mono text-xs">{column}</p>)}</div></Card>)}</div>
+    <Card className="mt-5 p-5"><h3 className="mb-4 font-bold">Chọn quan hệ</h3><div className="grid gap-2 md:grid-cols-2">{CONNECTIONS.map((connection) => <button disabled={submitted} key={connection} onClick={() => toggle(connection)} className={cn('flex items-center gap-2 rounded-lg border p-3 text-left font-mono text-xs', selected.includes(connection) ? 'border-brand-500 bg-brand-50' : 'border-slate-200')}><Link2 size={16} />{connection.replace('>', ' → ')}</button>)}</div></Card>
+    {submitted && <p className="mt-5 rounded-xl bg-green-50 p-4 text-sm text-green-800">Star Schema đúng nối Fact Orders tới Customer, Product và Channel bằng các foreign key tương ứng. Model này cho phép phân tích revenue và retention theo channel.</p>}
+    <Button disabled={!selected.length} onClick={submitted ? nextStep : submit} size="lg" className="mx-auto mt-8 flex gap-2">{submitted ? 'Thiết kế dashboard' : 'Kiểm tra model'} <ArrowRight /></Button>
+  </div>;
 };
 
-const DatabaseIcon = ({table}: {table: string}) => {
-  if (table === 'customer') return <span className="text-yellow-400">👤</span>
-  if (table === 'product') return <span className="text-green-400">📦</span>
-  return <span className="text-blue-400">🧾</span> // orders
-}
+type Props = { state: GameState; updateState: (value: Partial<GameState>) => void; nextStep: () => void };

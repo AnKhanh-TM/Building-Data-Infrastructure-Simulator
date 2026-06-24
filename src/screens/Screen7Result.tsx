@@ -1,375 +1,475 @@
-import { useState, useMemo } from 'react';
-import type { GameState } from '../types/game';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import {
+import { useState } from 'react';
+import { 
+  AlertTriangle, 
+  CheckCircle2, 
+  XCircle, 
+  CloudOff, 
+  History, 
+  RefreshCw, 
+  RotateCcw, 
   Trophy,
-  RotateCcw,
-  ChevronRight,
-  ChevronDown,
-  BookOpen,
-  CheckCircle2,
-  XCircle,
-  HelpCircle,
-  BarChart3,
-  Lightbulb,
-  Medal,
-  Network,
-  AlertTriangle,
-  History
+  ArrowRight,
+  Database,
+  GitBranch,
+  Layout,
+  HelpCircle
 } from 'lucide-react';
+import type { GameState, GameScore } from '../types/game';
+import { getRank, getTotalScore } from '../types/game';
+import { isWebhookConfigured } from '../lib/submission';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import { cn } from '../lib/utils';
-import { GAME_CONTENT } from '../lib/constants';
+import { 
+  BUSINESS_QUESTIONS, 
+  MAPPING_TASKS, 
+  PIPELINE_STEPS, 
+  WAREHOUSE_OPTIONS, 
+  CORRECT_MODEL_CONNECTIONS,
+  DASHBOARD_OPTIONS
+} from '../lib/constants';
 
-interface ScreenProps {
-  state: GameState;
-  updateState: (updates: Partial<GameState>) => void;
-  nextStep: () => void;
-}
+const EXPECTED_METRICS = ['revenue', 'cac', 'ltv', 'repeat_rate', 'roas'];
+const EXPECTED_FIELDS = ['customer_id', 'source_campaign', 'order_value', 'order_date', 'ad_spend'];
 
-const ReviewItem = ({
-  title,
-  score,
-  maxScore,
-  children,
-  explanation
-}: {
-  title: string;
-  score: number;
-  maxScore: number;
-  children?: React.ReactNode;
-  explanation?: string;
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false);
 
-  return (
-    <Card className="overflow-hidden border border-slate-200">
-      <div
-        className={cn(
-          "p-4 flex items-center justify-between cursor-pointer transition-colors",
-          isExpanded ? "bg-slate-50" : "bg-white hover:bg-slate-50"
-        )}
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center gap-3">
-          <div className={cn(
-            "min-w-fit px-3 h-8 rounded-lg flex items-center justify-center text-white font-bold whitespace-nowrap",
-            score >= maxScore * 0.8 ? "bg-green-500" : score >= maxScore * 0.5 ? "bg-amber-500" : "bg-slate-400"
-          )}>
-            {score}/{maxScore}
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-800 text-sm">{title}</h4>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-0.5">
-              {score === maxScore ? 'Hoàn hảo' : score > 0 ? 'Thành công một phần' : 'Chưa đạt'}
-            </p>
-          </div>
-        </div>
-        {isExpanded ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
-      </div>
-
-      {isExpanded && (
-        <div className="p-5 border-t border-slate-100 bg-white animate-in slide-in-from-top-1 duration-200">
-          {explanation && (
-            <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed">
-              "{explanation}"
-            </div>
-          )}
-          {children}
-        </div>
-      )}
-    </Card>
-  );
+const LABELS: Record<keyof GameScore, [string, number]> = {
+  businessQuestion: ['Business Question', 10], 
+  dataMapping: ['Data Mapping', 15], 
+  pipeline: ['Pipeline & ETL', 15],
+  warehouse: ['Data Warehouse', 10], 
+  dataModel: ['Data Model', 20], 
+  dashboard: ['ADO & Dashboard', 20], 
+  opportunity: ['AI Opportunity', 10],
 };
 
-export const Screen7Result = ({ state, nextStep }: ScreenProps) => {
-  const totalScore = Object.values(state.score).reduce((a, b) => a + b, 0);
-  const [showReview, setShowReview] = useState(false);
+const FIELD_LABELS: Record<string, string> = {
+  source_campaign: 'Kênh Marketing (Source/Campaign)',
+  order_revenue: 'Doanh thu (Order Revenue)',
+  customer_id: 'Khách hàng (Customer ID)',
+  order_date: 'Ngày mua hàng (Order Date)',
+  ad_spend: 'Chi phí quảng cáo (Ad Spend)',
+  customer_revenue: 'Doanh thu theo khách (LTV)',
+  email_open: 'Tỷ lệ mở Email',
+  cpu_usage: 'Hiệu suất Server'
+};
 
-  const scoreDetails = useMemo(() => {
-    const maxTotal = 100; // Target sum of 30+5+5+20+40
-    const percentage = Math.round((totalScore / maxTotal) * 100);
+const SOURCE_LABELS: Record<string, string> = {
+  ads: 'Ads Platforms',
+  ga4: 'GA4 (Google Analytics)',
+  orders: 'Order System',
+  crm: 'CRM',
+  email: 'Email Automation',
+  pos: 'Offline POS'
+};
 
-    let rank = "Beginner Analyst";
-    let color = "text-slate-500";
-    if (percentage > 85) { rank = "Data-Driven Manager"; color = "text-green-600"; }
-    else if (percentage > 60) { rank = "Strategic Lead"; color = "text-brand-600"; }
-    else if (percentage > 30) { rank = "Modern Marketer"; color = "text-amber-600"; }
+export const Screen7Result = ({ state, retrySync, resetGame }: { state: GameState; retrySync: () => void; resetGame: () => void }) => {
+  const [review, setReview] = useState(false);
+  const total = getTotalScore(state.score);
+  const weak = (Object.entries(state.score) as [keyof GameScore, number][]).filter(([key, value]) => value < LABELS[key][1] * .6);
+  
+  const sel = state.selections;
 
-    return { percentage, rank, color };
-  }, [totalScore]);
-
-  return (
-    <div className="w-full max-w-4xl mx-auto py-4">
-      <Card className="p-10 text-center relative overflow-hidden shadow-2xl border-none ring-1 ring-slate-200">
-        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-500 via-green-500 to-amber-500" />
-
-        <div className="relative z-10">
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-green-50 mb-6 shadow-inner ring-4 ring-white">
-            <Trophy className="text-green-600" size={48} strokeWidth={1.5} />
-          </div>
-
-          <h2 className="text-3xl font-black text-slate-800 mb-2 uppercase tracking-tighter">Thử thách kết thúc!</h2>
-          <p className="text-slate-500 font-medium mb-8">Hệ thống hạ tầng của bạn đã sẵn sàng vận hành.</p>
-
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col items-center shadow-sm">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Xếp hạng của bạn</span>
-              <span className={cn("text-xl font-black", scoreDetails.color)}>{scoreDetails.rank}</span>
-            </div>
-            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col items-center shadow-sm">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng điểm tích lũy</span>
-              <span className="text-2xl font-black text-slate-800">{totalScore}</span>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <Button
-              onClick={() => setShowReview(!showReview)}
-              variant="outline"
-              className="w-full h-14 bg-white border-2 border-slate-200 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 active:scale-95 transition-all"
-            >
-              <History size={20} className="text-brand-500" />
-              {showReview ? 'Ẩn lịch sử chi tiết' : 'Xem lại đáp án & Giải thích'}
+  return <div className="mx-auto max-w-4xl space-y-6">
+    <Card className="overflow-hidden text-center shadow-2xl">
+      <div className="h-2 bg-gradient-to-r from-brand-500 via-green-500 to-amber-500" />
+      <div className="p-8 sm:p-10">
+        <Trophy size={58} className="mx-auto mb-4 text-amber-500 animate-bounce" />
+        <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Case hoàn thành</p>
+        <h2 className="text-4xl font-black text-slate-800">{total}/100</h2>
+        <p className="mt-2 text-xl font-bold text-slate-600">{getRank(total)}</p>
+        
+        <div className="mt-6">
+          <SyncStatus status={state.submission.completeSync} configured={isWebhookConfigured} />
+          <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row">
+            {state.submission.completeSync === 'failed' && (
+              <Button onClick={retrySync} variant="outline" className="gap-2">
+                <RefreshCw size={18} /> Gửi lại kết quả
+              </Button>
+            )}
+            <Button onClick={() => setReview(!review)} variant="outline" className="gap-2">
+              <History size={18} /> {review ? 'Ẩn review' : 'Xem review chi tiết'}
             </Button>
-
-            <Button
-              onClick={nextStep}
-              className="w-full h-16 bg-slate-900 hover:bg-black rounded-2xl font-black text-lg uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95"
-            >
-              <RotateCcw size={20} />
-              Thử lại từ đầu
+            <Button onClick={resetGame} className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
+              <RotateCcw size={18} /> Làm lại từ đầu
             </Button>
           </div>
         </div>
+      </div>
+    </Card>
+
+    {weak.length > 0 && (
+      <Card className="border-amber-200 bg-amber-50 p-5 shadow-sm">
+        <h3 className="flex items-center gap-2 font-black text-amber-900"><AlertTriangle /> Mảng kiến thức cần ôn tập thêm</h3>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {weak.map(([key]) => <span key={key} className="rounded-full bg-white border border-amber-200 px-3 py-1.5 text-xs font-bold text-amber-800 shadow-sm">{LABELS[key][0]}</span>)}
+        </div>
       </Card>
+    )}
 
-      {showReview && (
-        <div className="mt-12 space-y-4 animate-in slide-in-from-bottom-5 duration-700">
-          <div className="flex items-center gap-3 mb-6 px-2">
-            <div className="w-10 h-1 border-b-4 border-brand-500 rounded-full" />
-            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Chi tiết lộ trình xử lý dữ liệu</h3>
+    {review && (
+      <div className="space-y-4 animate-fadeIn">
+        <div className="border-b border-slate-200 pb-2">
+          <h3 className="text-lg font-black text-slate-800">Báo cáo chi tiết & So sánh đáp án</h3>
+          <p className="text-xs text-slate-400">Xem lại các lựa chọn của bạn (màu đỏ nếu sai) đối chiếu với đáp án chuẩn của chuyên gia (màu xanh lá).</p>
+        </div>
+
+        {/* Step 1 Review */}
+        <Card className="p-5 space-y-3 relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" />
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-800 text-sm">Bước 1: Chọn Business Question</h4>
+            <ScoreBadge score={state.score.businessQuestion} max={10} />
           </div>
+          <div className="text-xs space-y-2">
+            <div>
+              <span className="text-slate-400 uppercase font-black text-[9px] block">Lựa chọn của bạn</span>
+              <span className={cn(
+                "font-semibold p-2 rounded block mt-1 border",
+                sel.businessQuestion === 'quality_channel' 
+                  ? "bg-green-50 border-green-200 text-green-800" 
+                  : "bg-red-50 border-red-200 text-red-800"
+              )}>
+                {BUSINESS_QUESTIONS.find(q => q.id === sel.businessQuestion)?.label || sel.businessQuestion || 'Chưa chọn'}
+              </span>
+            </div>
+            {sel.businessQuestion !== 'quality_channel' && (
+              <div>
+                <span className="text-green-700 font-bold block mt-1">
+                  ✓ Đáp án đúng: Kênh nào mang lại khách hàng mua nhiều và quay lại?
+                </span>
+              </div>
+            )}
+          </div>
+        </Card>
 
-          {/* Step 1: Data Sources */}
-          <ReviewItem
-            title={GAME_CONTENT.step2.title}
-            score={state.score.sources}
-            maxScore={30}
-            explanation="Mỗi Data Source giải quyết một câu hỏi kinh doanh đặc thù. Hiểu thói quen mua hàng cần thấu hiểu hành vi (GA4), lịch sử (Order) và dữ liệu thực tế (POS)."
-          >
-            <div className="space-y-4">
-              {GAME_CONTENT.step2.sources.map(s => {
-                const isSelected = state.selections.sources?.includes(s.id);
-                const userQId = state.selections.sourceQuestions[s.id];
-                const correctQId = GAME_CONTENT.step2.correctMappings[s.id as keyof typeof GAME_CONTENT.step2.correctMappings];
-                const userQ = GAME_CONTENT.step2.questions.find(q => q.id === userQId);
-                const correctQ = GAME_CONTENT.step2.questions.find(q => q.id === correctQId);
+        {/* Step 2 Review */}
+        <Card className="p-5 space-y-3 relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" />
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-800 text-sm">Bước 2: ASK → DATA Mapping (Ánh xạ dữ liệu)</h4>
+            <ScoreBadge score={state.score.dataMapping} max={15} />
+          </div>
+          <div className="text-xs space-y-4">
+            {MAPPING_TASKS.map((task) => {
+              const userMap = sel.sourceMappings[task.id] || { fields: [], sources: [] };
+              const pickedFields = userMap.fields || [];
+              const pickedSources = userMap.sources || [];
+              
+              const isCorrectFields = task.requiredFields.every(f => pickedFields.includes(f)) && pickedFields.every(f => task.requiredFields.includes(f));
+              const isCorrectSources = task.requiredSources.every(s => pickedSources.includes(s)) && pickedSources.every(s => task.requiredSources.includes(s));
+              
+              const missedFields = task.requiredFields.filter(f => !pickedFields.includes(f));
+              const missedSources = task.requiredSources.filter(s => !pickedSources.includes(s));
+              
+              return (
+                <div key={task.id} className="border-t border-slate-100 pt-3 first:border-0 first:pt-0 space-y-2">
+                  <p className="font-bold text-slate-700">{task.question}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {/* Fields */}
+                    <div className="p-2.5 rounded bg-slate-50 border border-slate-100">
+                      <span className="text-[9px] font-black text-slate-400 block uppercase">Trường thông tin (Fields)</span>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {pickedFields.map(fId => {
+                          const isCorrect = task.requiredFields.includes(fId);
+                          return (
+                            <span key={fId} className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", isCorrect ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800")}>
+                              {isCorrect ? '✓' : '✗'} {FIELD_LABELS[fId] || fId}
+                            </span>
+                          );
+                        })}
+                        {missedFields.map(fId => (
+                          <span key={`missed-${fId}`} className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-dashed border-amber-300 bg-amber-50/50 text-amber-800">
+                            ⚠ [Thiếu] {FIELD_LABELS[fId] || fId}
+                          </span>
+                        ))}
+                        {pickedFields.length === 0 && missedFields.length === 0 && <span className="text-slate-400 italic">Trống</span>}
+                      </div>
+                      {!isCorrectFields && (
+                        <div className="mt-2 text-green-700 text-[10px] font-bold">
+                          Đáp án đúng: {task.requiredFields.map(f => FIELD_LABELS[f]).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    {/* Sources */}
+                    <div className="p-2.5 rounded bg-slate-50 border border-slate-100">
+                      <span className="text-[9px] font-black text-slate-400 block uppercase">Nguồn lưu trữ (Sources)</span>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {pickedSources.map(sId => {
+                          const isCorrect = task.requiredSources.includes(sId);
+                          return (
+                            <span key={sId} className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", isCorrect ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800")}>
+                              {isCorrect ? '✓' : '✗'} {SOURCE_LABELS[sId] || sId}
+                            </span>
+                          );
+                        })}
+                        {missedSources.map(sId => (
+                          <span key={`missed-${sId}`} className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-dashed border-amber-300 bg-amber-50/50 text-amber-800">
+                            ⚠ [Thiếu] {SOURCE_LABELS[sId] || sId}
+                          </span>
+                        ))}
+                        {pickedSources.length === 0 && missedSources.length === 0 && <span className="text-slate-400 italic">Trống</span>}
+                      </div>
+                      {!isCorrectSources && (
+                        <div className="mt-2 text-green-700 text-[10px] font-bold">
+                          Đáp án đúng: {task.requiredSources.map(s => SOURCE_LABELS[s]).join(' + ')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
 
-                const isCorrect = s.correct && isSelected && (userQId === correctQId || !correctQId);
-                const isWrong = (s.correct && !isSelected) || (isSelected && !s.correct) || (isSelected && s.correct && userQId !== correctQId);
+        {/* Step 3 Review */}
+        <Card className="p-5 space-y-3 relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" />
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-800 text-sm">Bước 3: Pipeline & ETL</h4>
+            <ScoreBadge score={state.score.pipeline} max={15} />
+          </div>
+          <div className="text-xs space-y-3">
+            <div>
+              <span className="text-[9px] font-black text-slate-400 uppercase block">Thứ tự luồng dẫn dữ liệu của bạn:</span>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                {sel.pipelineOrder.map((stepId, idx) => {
+                  const expectedOrder = PIPELINE_STEPS.map(([id]) => id);
+                  const isCorrectPos = stepId === expectedOrder[idx];
+                  return (
+                    <div key={stepId} className="flex items-center gap-1">
+                      <span className={cn(
+                        "px-2 py-1 rounded text-[10px] font-semibold border",
+                        isCorrectPos ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+                      )}>
+                        {idx + 1}. {PIPELINE_STEPS.find(([id]) => id === stepId)?.[1]?.split(' ')[0] || stepId}
+                      </span>
+                      {idx < sel.pipelineOrder.length - 1 && <span className="text-slate-300">→</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              {JSON.stringify(sel.pipelineOrder) !== JSON.stringify(PIPELINE_STEPS.map(([id]) => id)) && (
+                <div className="mt-2 text-green-700 font-bold text-[10px]">
+                  ✓ Thứ tự đúng: Extract → Transform → Load → Model → Dashboard
+                </div>
+              )}
+            </div>
+            
+            <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-slate-100">
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase block">Cách vận hành pipeline:</span>
+                <span className={cn(
+                  "font-semibold block p-1 px-2 rounded mt-1 border text-[10px] w-fit",
+                  sel.pipelineDecisions.mode === 'automated' ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+                )}>
+                  {sel.pipelineDecisions.mode === 'automated' ? 'Tự động theo lịch (Đúng)' : sel.pipelineDecisions.mode === 'manual' ? 'Thủ công (Sai)' : 'Realtime (Chưa tối ưu chi phí)'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase block">Định dạng Customer ID:</span>
+                <span className={cn(
+                  "font-semibold block p-1 px-2 rounded mt-1 border text-[10px] w-fit",
+                  sel.pipelineDecisions.identity === 'normalize' ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+                )}>
+                  {sel.pipelineDecisions.identity === 'normalize' ? 'Chuẩn hóa trước khi nối (Đúng)' : 'Bỏ qua / Xóa (Sai)'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Step 4 Review */}
+        <Card className="p-5 space-y-3 relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" />
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-800 text-sm">Bước 4: Data Warehouse</h4>
+            <ScoreBadge score={state.score.warehouse} max={10} />
+          </div>
+          <div className="text-xs space-y-3">
+            <div>
+              <span className="text-[9px] font-black text-slate-400 uppercase block">Lựa chọn kho lưu trữ:</span>
+              <span className={cn(
+                "font-semibold block p-2 rounded mt-1 border w-fit",
+                sel.warehouseAnswer === 'bigquery' ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+              )}>
+                {WAREHOUSE_OPTIONS.find(w => w.id === sel.warehouseAnswer)?.label || sel.warehouseAnswer || 'Chưa chọn'}
+              </span>
+              {sel.warehouseAnswer !== 'bigquery' && (
+                <div className="mt-1.5 text-green-700 font-bold">✓ Đáp án đúng: BigQuery</div>
+              )}
+            </div>
+
+              {(() => {
+                const missedReasons = ['scale', 'ecosystem', 'automation'].filter(r => !sel.warehouseReasons.includes(r));
+                const REASON_LABELS: Record<string, string> = {
+                  scale: 'Scale tốt khi dữ liệu tăng',
+                  ecosystem: 'Tích hợp tốt với GA4',
+                  automation: 'Phù hợp pipeline tự động',
+                };
 
                 return (
-                  <div key={s.id} className={cn("p-4 rounded-2xl border bg-white shadow-sm transition-all", isWrong ? "border-red-100 bg-red-50/10" : "border-slate-50")}>
-                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-50">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">{s.icon}</span>
-                        <span className="font-black text-slate-800 uppercase text-xs tracking-wider">{s.label}</span>
-                      </div>
-                      {isCorrect ? <CheckCircle2 size={16} className="text-green-500" /> : isWrong ? <XCircle size={16} className="text-red-500" /> : null}
+                  <div className="pt-2 border-t border-slate-100">
+                    <span className="text-[9px] font-black text-slate-400 uppercase block">Các lý do phù hợp bạn đã chọn:</span>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {sel.warehouseReasons.map(rId => {
+                        const isCorrect = ['scale', 'ecosystem', 'automation'].includes(rId);
+                        const reasonLabel = rId === 'scale' ? 'Scale tốt khi dữ liệu tăng' : rId === 'ecosystem' ? 'Tích hợp tốt với GA4' : rId === 'automation' ? 'Phù hợp pipeline tự động' : rId === 'no_sql' ? 'Không cần biết SQL' : 'Luôn miễn phí';
+                        return (
+                          <span key={rId} className={cn("px-2 py-0.5 rounded text-[10px] font-semibold border", isCorrect ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800")}>
+                            {isCorrect ? '✓' : '✗'} {reasonLabel}
+                          </span>
+                        );
+                      })}
+                      {missedReasons.map(rId => (
+                        <span key={`missed-${rId}`} className="px-2 py-0.5 rounded text-[10px] font-semibold border border-dashed border-amber-300 bg-amber-50/50 text-amber-800">
+                          ⚠ [Thiếu] {REASON_LABELS[rId] || rId}
+                        </span>
+                      ))}
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase">Trạng thái</span>
-                        <p className={cn("text-xs font-bold", isSelected ? "text-brand-600" : "text-slate-400")}>
-                          {isSelected ? 'Bạn đã chọn' : 'Bạn KHÔNG chọn'}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase">Đáp án</span>
-                        <p className={cn("text-xs font-bold", s.correct ? "text-green-600" : "text-red-400")}>
-                          {s.correct ? 'Cần thiết' : 'Gây nhiễu'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {isSelected && s.correct && (
-                      <div className="mt-3 p-3 bg-white rounded-xl border border-slate-100 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-bold text-slate-400">CÂU HỎI BẠN GẮN:</span>
-                          {userQId === correctQId ? <CheckCircle2 size={12} className="text-green-500" /> : <XCircle size={12} className="text-red-500" />}
-                        </div>
-                        <p className={cn("text-[11px] font-bold", userQId === correctQId ? "text-green-600" : "text-red-500")}>
-                          {userQ?.text || 'Chưa chọn'}
-                        </p>
-                        {userQId !== correctQId && (
-                          <div className="mt-1 pt-1 border-t border-slate-50">
-                            <span className="text-[9px] font-bold text-green-600">ĐÁP ÁN ĐÚNG:</span>
-                            <p className="text-[11px] font-bold text-green-700">{correctQ?.text}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-3 p-3 bg-slate-50 rounded-xl flex items-start gap-2">
-                      <Lightbulb size={12} className="text-amber-500 mt-0.5 shrink-0" />
-                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed leading-tight">
-                        <strong>Giải thích:</strong> {s.reason}
-                      </p>
+                    <div className="mt-2 text-green-700 text-[10px] font-bold">
+                      Lý do đúng: Scale tốt khi dữ liệu tăng, Tích hợp GA4, Phù hợp tự động hóa.
                     </div>
                   </div>
                 );
+              })()}
+          </div>
+        </Card>
+
+        {/* Step 5 Review */}
+        <Card className="p-5 space-y-3 relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" />
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-800 text-sm">Bước 5: Data Model (Star Schema)</h4>
+            <ScoreBadge score={state.score.dataModel} max={20} />
+          </div>
+          <div className="text-xs space-y-2">
+            <span className="text-[9px] font-black text-slate-400 uppercase block">Các mối nối bạn đã thiết lập:</span>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {sel.modelConnections.map(conn => {
+                const isCorrect = CORRECT_MODEL_CONNECTIONS.includes(conn);
+                return (
+                  <span key={conn} className={cn("p-1.5 px-2.5 rounded font-mono text-[10px] border flex justify-between items-center", isCorrect ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800")}>
+                    <span>{conn.replace('>', ' → ')}</span>
+                    <span className="font-bold">{isCorrect ? '✓' : '✗'}</span>
+                  </span>
+                );
               })}
+              {CORRECT_MODEL_CONNECTIONS.filter(conn => !sel.modelConnections.includes(conn)).map(conn => (
+                <span key={`missed-${conn}`} className="p-1.5 px-2.5 rounded font-mono text-[10px] border border-dashed border-amber-300 bg-amber-50/50 text-amber-800 flex justify-between items-center">
+                  <span>⚠ [Thiếu] {conn.replace('>', ' → ')}</span>
+                  <span className="font-bold">?</span>
+                </span>
+              ))}
             </div>
-          </ReviewItem>
+            <div className="mt-2 text-green-700 text-[10px] font-bold">
+              Các mối nối đúng: 
+              <ul className="list-disc pl-4 mt-1 font-mono text-[9px]">
+                <li>fact_orders.customer_id → dim_customer.customer_id</li>
+                <li>fact_orders.product_id → dim_product.product_id</li>
+                <li>fact_orders.channel_id → dim_channel.channel_id</li>
+              </ul>
+            </div>
+          </div>
+        </Card>
 
-          {/* Step 2: Pipeline */}
-          <ReviewItem
-            title={GAME_CONTENT.step3.title}
-            score={state.score.pipeline || 0}
-            maxScore={5}
-            explanation={GAME_CONTENT.step3.explanation}
-          >
-            <div className="space-y-4">
-              <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Câu hỏi tư duy</span>
-                  <HelpCircle size={16} className="text-slate-300" />
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black text-slate-400 uppercase">Bạn chọn</span>
-                    <p className={cn("text-xs font-bold", state.selections.pipelineAnswer === GAME_CONTENT.step3.correctId ? "text-green-600" : "text-red-500")}>
-                      {GAME_CONTENT.step3.options.find(o => o.id === state.selections.pipelineAnswer)?.text || 'Bỏ qua'}
-                      {state.selections.pipelineAnswer === GAME_CONTENT.step3.correctId ? <CheckCircle2 size={12} className="inline ml-1" /> : <XCircle size={12} className="inline ml-1" />}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black text-slate-400 uppercase">Đáp án đúng</span>
-                    <p className="text-xs font-bold text-green-600">
-                      {GAME_CONTENT.step3.options.find(o => o.id === GAME_CONTENT.step3.correctId)?.text}
-                    </p>
-                  </div>
-                </div>
+        {/* Step 6 Review */}
+        <Card className="p-5 space-y-3 relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" />
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-800 text-sm">Bước 6: Dashboard Brief & AI</h4>
+            <ScoreBadge score={state.score.dashboard + state.score.opportunity} max={30} />
+          </div>
+          <div className="text-xs space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase block">Business Question (ASK):</span>
+                <span className={cn(
+                  "font-semibold block p-1 px-2 rounded mt-1 border text-[10px]",
+                  sel.dashboard.ask === 'quality_channel' ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+                )}>
+                  {sel.dashboard.ask === 'quality_channel' ? 'Kênh mua nhiều & quay lại (Đúng)' : 'Lượt click / Server (Sai)'}
+                </span>
+              </div>
+              
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase block">Cơ hội mở rộng AI (Opportunity):</span>
+                <span className={cn(
+                  "font-semibold block p-1 px-2 rounded mt-1 border text-[10px]",
+                  sel.opportunity === 'ads_agent' ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+                )}>
+                  {sel.opportunity === 'ads_agent' ? 'Ads Optimization Agent (Đúng)' : 'Nhận diện khuôn mặt/Chatbot (Chưa phù hợp)'}
+                </span>
               </div>
             </div>
-          </ReviewItem>
 
-          {/* Step 3: Warehouse */}
-          <ReviewItem
-            title={GAME_CONTENT.step4.title}
-            score={state.score.warehouse || 0}
-            maxScore={5}
-            explanation={GAME_CONTENT.step4.explanation}
-          >
-            <div className="space-y-4">
-              <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Phương án xử lý</span>
-                  <BarChart3 size={16} className="text-slate-300" />
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black text-slate-400 uppercase">Bạn chọn</span>
-                    <p className={cn("text-xs font-bold", state.selections.warehouseAnswer === GAME_CONTENT.step4.correctId ? "text-green-600" : "text-red-500")}>
-                      {GAME_CONTENT.step4.options.find(o => o.id === state.selections.warehouseAnswer)?.text || 'Bỏ qua'}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black text-slate-400 uppercase">Đáp án đúng</span>
-                    <p className="text-xs font-bold text-green-600">
-                      {GAME_CONTENT.step4.options.find(o => o.id === GAME_CONTENT.step4.correctId)?.text}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ReviewItem>
-
-          {/* Step 4: Data Model */}
-          <ReviewItem
-            title={GAME_CONTENT.step5.title}
-            score={state.score.dataModel || 0}
-            maxScore={20}
-            explanation={GAME_CONTENT.step5.explanation}
-          >
-            <div className="p-4 bg-white rounded-2xl border border-slate-100 flex flex-col gap-4">
-              <div className="flex items-center gap-3 p-3 bg-brand-50 rounded-xl border border-brand-100">
-                <Network size={20} className="text-brand-600" />
-                <div>
-                  <span className="text-[10px] font-black text-brand-400 uppercase">Kiến thức trọng tâm</span>
-                  <p className="text-[11px] font-bold text-brand-900 leading-tight">Liên kết đa kênh (Omnichannel Linkage)</p>
-                </div>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Mục tiêu là nối Orders bảng gốc sang bảng Customer (theo ID) và bảng Product (theo ID). Khi đó ta mới có thể phân tích: "KH A (Segment X) đã mua Sản phẩm Y vào ngày Z tại cửa hàng POS P hoặc WEB W".
-              </p>
-            </div>
-          </ReviewItem>
-
-          {/* Step 5: Dashboard */}
-          <ReviewItem
-            title={GAME_CONTENT.step6.title}
-            score={state.score.dashboard || 0}
-            maxScore={40}
-            explanation={GAME_CONTENT.step6.explanation}
-          >
-            <div className="space-y-4">
-              <div className="p-4 bg-white rounded-2xl border border-slate-100">
-                <span className="text-[10px] font-black text-slate-400 uppercase block mb-3">Các chỉ số đã chọn</span>
-                <div className="flex flex-wrap gap-2">
-                  {state.selections.dashboardKPIs.map(id => {
-                    const isCorrect = id !== 'attendance' && id !== 'uptime' && id !== 'likes' && id !== 'cpu' && id !== 'wifi' && id !== 'printer';
+            <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-slate-100">
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase block">KPIs đã chọn:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {sel.dashboard.metrics.map(metricId => {
+                    const isCorrect = EXPECTED_METRICS.includes(metricId);
+                    const label = DASHBOARD_OPTIONS.metrics.find((x) => x[0] === metricId)?.[1] || metricId;
                     return (
-                      <div key={id} className={cn("px-3 py-1.5 rounded-full text-[10px] font-black border flex items-center gap-2", isCorrect ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700")}>
-                        {id === 'rev_channel' ? 'Doanh thu kênh' : id === 'repeat_rate' ? 'Tỷ lệ quay lại' : id === 'aov' ? 'AOV' : id === 'freq' ? 'Tần suất' : id === 'segments' ? 'Phân khúc top' : id === 'funnel' ? 'Phễu CVR' : id === 'time_between' ? 'Khoảng cách mua' : id === 'voucher' ? 'Voucher CVR' : 'Số liệu rác'}
-                        {isCorrect ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                      </div>
+                      <span key={metricId} className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", isCorrect ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800")}>
+                        {isCorrect ? '✓' : '✗'} {label}
+                      </span>
+                    );
+                  })}
+                  {EXPECTED_METRICS.filter(m => !sel.dashboard.metrics.includes(m)).map(mId => {
+                    const label = DASHBOARD_OPTIONS.metrics.find((x) => x[0] === mId)?.[1] || mId;
+                    return (
+                      <span key={`missed-${mId}`} className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-dashed border-amber-300 bg-amber-50/50 text-amber-800">
+                        ⚠ [Thiếu] {label}
+                      </span>
                     );
                   })}
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-white rounded-2xl border border-slate-100">
-                  <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">AUDIENCE</span>
-                  <p className={cn("text-xs font-black", state.selections.dashboardADO?.audience === 'marketing_manager' ? "text-green-600" : "text-red-500")}>
-                    {state.selections.dashboardADO?.audience === 'marketing_manager' ? 'Marketing Manager (ĐÚNG)' : 'Chưa tối ưu'}
-                  </p>
+              
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase block">Fields đã chọn:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {sel.dashboard.fields.map(fId => {
+                    const isCorrect = EXPECTED_FIELDS.includes(fId);
+                    return (
+                      <span key={fId} className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border", isCorrect ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800")}>
+                        {isCorrect ? '✓' : '✗'} {FIELD_LABELS[fId] || fId}
+                      </span>
+                    );
+                  })}
+                  {EXPECTED_FIELDS.filter(f => !sel.dashboard.fields.includes(f)).map(fId => {
+                    const label = DASHBOARD_OPTIONS.fields.find((x) => x[0] === fId)?.[1] || fId;
+                    return (
+                      <span key={`missed-${fId}`} className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-dashed border-amber-300 bg-amber-50/50 text-amber-800">
+                        ⚠ [Thiếu] {label}
+                      </span>
+                    );
+                  })}
                 </div>
-                <div className="p-4 bg-white rounded-2xl border border-slate-100">
-                  <span className="text-[10px] font-black text-slate-400 uppercase block mb-1">BREAKDOWN</span>
-                  <p className={cn("text-xs font-black", state.selections.dashboardADO?.breakdown === 'time_segment' ? "text-green-600" : "text-red-500")}>
-                    {state.selections.dashboardADO?.breakdown === 'time_segment' ? 'Thời gian & Phân khúc (ĐÚNG)' : 'Chưa tối ưu'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </ReviewItem>
-
-          <div className="p-8 bg-slate-900 rounded-3xl text-white mt-12 border-4 border-slate-800 shadow-2xl overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12">
-              <Medal size={120} />
-            </div>
-            <h4 className="flex items-center gap-3 text-2xl font-black mb-6 uppercase tracking-tighter">
-              <Lightbulb className="text-amber-400 animate-pulse" />
-              Lời khuyên từ Data Mentor
-            </h4>
-            <p className="text-sm text-slate-300 leading-relaxed font-medium">
-              Xây dựng hạ tầng dữ liệu không chỉ là câu chuyện kỹ thuật, mà là cầu nối giữa <strong>Nghiệp vụ (Business)</strong> và <strong>Công nghệ (Technology)</strong>. Một người quản lý giỏi là người biết dữ liệu nào cần lấy, dữ liệu nào bỏ qua, và trình bày nó một cách có ý nghĩa nhất. Chúc bạn sớm trở thành một <strong>Data-Driven Manager</strong> chuyên nghiệp!
-            </p>
-            <div className="mt-8 flex gap-4">
-              <div className="px-4 py-2 rounded-full bg-slate-800 text-[10px] font-black border border-slate-700 uppercase tracking-widest text-slate-400 shadow-inner">
-                Strategy First
-              </div>
-              <div className="px-4 py-2 rounded-full bg-slate-800 text-[10px] font-black border border-slate-700 uppercase tracking-widest text-slate-400 shadow-inner">
-                No Data Junk
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        </Card>
+      </div>
+    )}
+  </div>;
 };
+
+const ScoreBadge = ({ score, max }: { score: number; max: number }) => (
+  <span className={cn(
+    "text-xs font-black px-2 py-1 rounded shadow-sm",
+    score >= max * 0.8 ? "bg-green-600 text-white" : score >= max * 0.5 ? "bg-amber-500 text-white" : "bg-red-600 text-white"
+  )}>
+    {score}/{max}
+  </span>
+);
+
+const SyncStatus = ({ status, configured }: { status: GameState['submission']['completeSync']; configured: boolean }) => {
+  if (!configured) return <p className="flex items-center justify-center gap-2 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-800"><CloudOff size={18} /> Chưa cấu hình Google Sheets webhook. Kết quả vẫn được lưu trên thiết bị.</p>;
+  if (status === 'synced') return <p className="flex items-center justify-center gap-2 rounded-lg bg-green-50 p-3 text-sm font-semibold text-green-800"><CheckCircle2 size={18} /> Kết quả đã được ghi nhận trên Google Sheets.</p>;
+  if (status === 'failed') return <p className="flex items-center justify-center gap-2 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700"><CloudOff size={18} /> Chưa gửi được kết quả. Bài làm không bị mất.</p>;
+  return <p className="rounded-lg bg-blue-50 p-3 text-sm font-semibold text-blue-700">Đang ghi nhận kết quả...</p>;
+};
+

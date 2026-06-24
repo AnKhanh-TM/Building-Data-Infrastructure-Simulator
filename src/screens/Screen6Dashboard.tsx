@@ -1,266 +1,260 @@
 import { useState } from 'react';
+import { ArrowRight, BarChart3, BrainCircuit, CheckCircle2 } from 'lucide-react';
 import type { GameState } from '../types/game';
-import { Card } from '../components/ui/Card';
+import { DASHBOARD_OPTIONS } from '../lib/constants';
 import { Button } from '../components/ui/Button';
-import { LayoutDashboard, PlusCircle, MinusCircle, ArrowRight, BarChart3, CheckCircle2 } from 'lucide-react';
+import { Card } from '../components/ui/Card';
 import { cn } from '../lib/utils';
 
-interface ScreenProps {
-  state: GameState;
-  updateState: (updates: Partial<GameState>) => void;
-  nextStep: () => void;
-}
-
-const ALL_METRICS = [
-  { id: 'rev_channel', label: 'Doanh thu theo kênh', correct: true, value: '850M' },
-  { id: 'repeat_rate', label: 'Tỷ lệ quay lại khách cũ', correct: true, value: '24.5%' },
-  { id: 'aov', label: 'Giá trị đơn TB (AOV)', correct: true, value: '1.2M' },
-  { id: 'freq', label: 'Tần suất mua hàng', correct: true, value: '2.4' },
-  { id: 'segments', label: 'Phân khúc KH chi tiêu cao', correct: true, value: '1,240' },
-  { id: 'funnel', label: 'Tỷ lệ chuyển đổi phễu', correct: true, value: '12.8%' },
-  { id: 'time_between', label: 'T.gian giữa 2 lần mua', correct: true, value: '45d' },
-  { id: 'voucher', label: 'Hiệu quả dùng Voucher', correct: true, value: '18.2%' },
-  { id: 'attendance', label: 'Chuyên cần của nhân viên', correct: false, value: '98%' },
-  { id: 'uptime', label: 'Thời gian server hoạt động', correct: false, value: '99.9%' },
-  { id: 'likes', label: 'Số lượng Like Fanpage', correct: false, value: '45.2K' },
-  { id: 'cpu', label: 'Tải lượng CPU hệ thống', correct: false, value: '42%' },
-  { id: 'wifi', label: 'Tốc độ Wifi cửa hàng', correct: false, value: '120Mbps' },
-  { id: 'printer', label: 'Trình trạng mực máy in', correct: false, value: 'OK' },
+const OPPORTUNITIES = [
+  ['ads_agent', 'Ads Optimization Agent: theo dõi CAC, LTV, ROAS và đề xuất điều chỉnh ngân sách'],
+  ['face_recognition', 'Nhận diện khuôn mặt khách vào cửa hàng để chạy quảng cáo'],
+  ['general_chatbot', 'Chatbot trả lời mọi câu hỏi không dùng dữ liệu warehouse'],
+  ['server_ai', 'AI tự nâng cấp CPU khi server chậm'],
 ];
 
-const CORRECT_ADO = {
-  audience: 'marketing_manager',
-  breakdown: 'time_segment'
+const EXPECTED_METRICS = ['revenue', 'cac', 'ltv', 'repeat_rate', 'roas'];
+const EXPECTED_FIELDS = ['customer_id', 'source_campaign', 'order_value', 'order_date', 'ad_spend'];
+
+export const Screen6Dashboard = ({ state, updateState, complete }: { state: GameState; updateState: (value: Partial<GameState>) => void; nextStep: () => void; complete: () => void }) => {
+  const submitted = state.submittedSteps.includes(6);
+  const [dashboard, setDashboard] = useState(state.selections.dashboard);
+  const [opportunity, setOpportunity] = useState(state.selections.opportunity);
+  
+  const toggle = (key: 'metrics' | 'fields', id: string) => setDashboard({ ...dashboard, [key]: dashboard[key].includes(id) ? dashboard[key].filter((x) => x !== id) : [...dashboard[key], id] });
+  
+  const submit = () => {
+    let score = dashboard.ask === 'quality_channel' ? 3 : 0;
+    score += Math.max(0, EXPECTED_METRICS.filter((x) => dashboard.metrics.includes(x)).length * 1.4 - dashboard.metrics.filter((x) => !EXPECTED_METRICS.includes(x)).length);
+    score += Math.max(0, EXPECTED_FIELDS.filter((x) => dashboard.fields.includes(x)).length - dashboard.fields.filter((x) => !EXPECTED_FIELDS.includes(x)).length);
+    score += dashboard.breakdown === 'channel_segment_time' ? 3 : 0;
+    score += dashboard.cadence === 'daily_weekly' ? 2 : 0;
+    updateState({ score: { ...state.score, dashboard: Math.round(Math.min(20, score)), opportunity: opportunity === 'ads_agent' ? 10 : 0 }, selections: { ...state.selections, dashboard, opportunity }, submittedSteps: [...new Set([...state.submittedSteps, 6])] });
+  };
+  
+  return <div className="mx-auto max-w-6xl">
+    <div className="mb-6 text-center"><p className="text-xs font-bold uppercase tracking-widest text-brand-600">30 điểm</p><h2 className="text-3xl font-black">ASK – DATA – OUTPUT</h2><p className="mt-2 text-slate-600">Brief cho Data Team đủ rõ để họ không phải tự đoán.</p></div>
+    
+    <div className="grid gap-5 lg:grid-cols-3">
+      <Card className="p-5 flex flex-col justify-between">
+        <div>
+          <SectionTitle tag="ASK" text="Câu hỏi ý nghĩa kinh doanh cần trả lời" />
+          <p className="text-[10px] text-slate-400 mb-3 italic">Hãy chọn câu hỏi cốt lõi dẫn trực tiếp tới doanh thu và ngân sách.</p>
+          <SingleSelect 
+            value={dashboard.ask} 
+            options={DASHBOARD_OPTIONS.asks} 
+            disabled={submitted} 
+            isCorrect={dashboard.ask === 'quality_channel'}
+            submitted={submitted}
+            onChange={(ask) => setDashboard({ ...dashboard, ask })} 
+          />
+        </div>
+        {submitted && dashboard.ask !== 'quality_channel' && (
+          <p className="text-[10px] text-green-700 font-semibold bg-green-50 p-2 rounded mt-2">
+            * Đáp án đúng: Kênh nào mang lại khách hàng mua nhiều và quay lại?
+          </p>
+        )}
+      </Card>
+      
+      <Card className="p-5 lg:col-span-2">
+        <SectionTitle tag="DATA" text="KPI và fields cần thiết" />
+        <Multi 
+          label={`KPIs (Cần chọn ${EXPECTED_METRICS.length} chỉ số)`} 
+          options={DASHBOARD_OPTIONS.metrics} 
+          selected={dashboard.metrics} 
+          disabled={submitted} 
+          expectedList={EXPECTED_METRICS}
+          submitted={submitted}
+          onToggle={(id) => toggle('metrics', id)} 
+        />
+        <Multi 
+          label={`Fields (Cần chọn ${EXPECTED_FIELDS.length} trường)`} 
+          options={DASHBOARD_OPTIONS.fields} 
+          selected={dashboard.fields} 
+          disabled={submitted} 
+          expectedList={EXPECTED_FIELDS}
+          submitted={submitted}
+          onToggle={(id) => toggle('fields', id)} 
+        />
+      </Card>
+      
+      <Card className="p-5 lg:col-span-2">
+        <SectionTitle tag="OUTPUT" text="Góc nhìn và nhịp cập nhật" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="text-[10px] text-slate-400 mb-1.5 font-bold uppercase">Chiều phân tích (Breakdown)</p>
+            <SingleSelect 
+              value={dashboard.breakdown} 
+              options={DASHBOARD_OPTIONS.breakdowns} 
+              disabled={submitted} 
+              isCorrect={dashboard.breakdown === 'channel_segment_time'}
+              submitted={submitted}
+              onChange={(breakdown) => setDashboard({ ...dashboard, breakdown })} 
+            />
+            {submitted && dashboard.breakdown !== 'channel_segment_time' && (
+              <p className="text-[9px] text-green-700 bg-green-50 p-1.5 rounded mt-1.5">
+                * Đúng: Channel + customer segment + thời gian
+              </p>
+            )}
+          </div>
+          
+          <div>
+            <p className="text-[10px] text-slate-400 mb-1.5 font-bold uppercase">Tần suất review (Cadence)</p>
+            <SingleSelect 
+              value={dashboard.cadence} 
+              options={DASHBOARD_OPTIONS.cadences} 
+              disabled={submitted} 
+              isCorrect={dashboard.cadence === 'daily_weekly'}
+              submitted={submitted}
+              onChange={(cadence) => setDashboard({ ...dashboard, cadence })} 
+            />
+            {submitted && dashboard.cadence !== 'daily_weekly' && (
+              <p className="text-[9px] text-green-700 bg-green-50 p-1.5 rounded mt-1.5">
+                * Đúng: Cập nhật hằng ngày, review ngân sách hằng tuần
+              </p>
+            )}
+          </div>
+        </div>
+      </Card>
+      
+      <Card className="bg-slate-900 p-5 text-white flex flex-col justify-between">
+        <div>
+          <BarChart3 className="mb-3 text-brand-300 animate-pulse" />
+          <h3 className="font-black text-sm text-slate-100">Dashboard Decision</h3>
+          <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+            Mục tiêu là biểu diễn CAC so sánh trực tiếp với LTV và tỉ lệ mua lại (repeat rate) theo thời gian của từng tệp khách để đưa ra quyết định nâng/giảm ngân sách tức thì.
+          </p>
+        </div>
+      </Card>
+    </div>
+    
+    <Card className="mt-5 p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <BrainCircuit className="text-brand-600 animate-pulse" />
+        <div>
+          <p className="text-xs font-bold uppercase text-brand-600">10 điểm mở rộng</p>
+          <h3 className="font-black">Cơ hội nào hợp lý sau khi data đã sạch và có cấu trúc?</h3>
+        </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        {OPPORTUNITIES.map(([id, text]) => {
+          const isSelected = opportunity === id;
+          const isCorrect = id === 'ads_agent';
+          
+          let btnStyle = 'border-slate-200 hover:border-brand-200';
+          if (isSelected && !submitted) {
+            btnStyle = 'border-brand-500 bg-brand-50 text-slate-900';
+          } else if (submitted) {
+            if (isCorrect) {
+              btnStyle = 'border-green-500 bg-green-50/50 text-green-900 font-bold';
+            } else if (isSelected) {
+              btnStyle = 'border-red-500 bg-red-50/50 text-red-900 line-through';
+            } else {
+              btnStyle = 'border-slate-100 text-slate-400 opacity-50';
+            }
+          }
+          
+          return (
+            <button 
+              disabled={submitted} 
+              key={id} 
+              onClick={() => setOpportunity(id)} 
+              className={cn('rounded-xl border p-4 text-left text-xs font-semibold flex justify-between items-center transition', btnStyle)}
+            >
+              <span>{text}</span>
+              {submitted && isCorrect && <span className="text-green-600 font-bold ml-2">✓ Đúng</span>}
+              {submitted && isSelected && !isCorrect && <span className="text-red-600 font-bold ml-2">✗ Sai</span>}
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+    
+    {submitted && (
+      <div className="mt-5 rounded-xl bg-green-50 p-4 border border-green-200/50 text-sm leading-relaxed text-green-800">
+        <p className="font-bold flex items-center gap-1.5"><CheckCircle2 className="text-green-600" /> Giải thích chi tiết:</p>
+        <p className="mt-1">
+          Brief chuẩn giúp đội kỹ thuật không phải phỏng đoán. Các chỉ số được chọn bao phủ toàn bộ bài toán tài chính quảng cáo (spend, revenue, CAC, LTV). 
+        </p>
+        <p className="mt-1">
+          <strong>Ads Optimization Agent</strong> là cơ hội mở rộng AI tốt nhất lúc này, vì sau khi đã làm sạch kho dữ liệu chung, AI có thể đọc trực tiếp số liệu chi tiêu và doanh thu trọn đời để tự động điều chỉnh ngân sách tối ưu theo thời gian thực.
+        </p>
+      </div>
+    )}
+    
+    <Button disabled={!dashboard.ask || !dashboard.metrics.length || !dashboard.fields.length || !dashboard.breakdown || !dashboard.cadence || !opportunity} onClick={submitted ? complete : submit} size="lg" className="mx-auto mt-8 flex gap-2">{submitted ? 'Hoàn thành dự án' : 'Xuất bản dashboard'} <ArrowRight /></Button>
+  </div>;
 };
 
-export const Screen6Dashboard = ({ state, updateState, nextStep }: ScreenProps) => {
-  const isSubmitted = state.submittedSteps.includes(6);
-  const [selectedKPIs, setSelectedKPIs] = useState<string[]>(state.selections.dashboardKPIs || []);
-  const [audience, setAudience] = useState(state.selections.dashboardADO?.audience || '');
-  const [breakdown, setBreakdown] = useState(state.selections.dashboardADO?.breakdown || '');
-  const [error, setError] = useState('');
-  const [showFeedback, setShowFeedback] = useState(isSubmitted);
+const SectionTitle = ({ tag, text }: { tag: string; text: string }) => <div className="mb-4"><span className="rounded bg-brand-100 px-2 py-1 text-xs font-black text-brand-800">{tag}</span><h3 className="mt-2 font-black">{text}</h3></div>;
 
-  const toggleKPI = (id: string) => {
-    if (isSubmitted) return;
-    setSelectedKPIs(prev => {
-      if (prev.includes(id)) return prev.filter(kpi => kpi !== id);
-      return [...prev, id];
-    });
-    setError('');
-  };
-
-  const handleSubmit = () => {
-    if (selectedKPIs.length < 4) {
-      setError("Vui lòng chọn ít nhất 4 chỉ số (KPIs) quan trọng nhất.");
-      return;
-    }
-
-    if (!audience || !breakdown) {
-      setError("Vui lòng trả lời câu hỏi phụ về phân tích bối cảnh bên dưới.");
-      return;
-    }
-
-    // Scoring logic: +4 for correct KPI, -5 for incorrect KPI, +10 for correct ADO components
-    let kpiScore = 0;
-    selectedKPIs.forEach(id => {
-      const metric = ALL_METRICS.find(m => m.id === id);
-      if (metric?.correct) kpiScore += 4;
-      else kpiScore -= 5;
-    });
-
-    let adoScore = 0;
-    if (audience === CORRECT_ADO.audience) adoScore += 10;
-    else adoScore -= 5;
-
-    if (breakdown === CORRECT_ADO.breakdown) adoScore += 10;
-    else adoScore -= 5;
-
-    const totalScore = Math.min(40, Math.max(0, kpiScore + adoScore));
-
-    updateState({
-      score: { ...state.score, dashboard: totalScore },
-      selections: {
-        ...state.selections,
-        dashboardKPIs: selectedKPIs,
-        dashboardADO: { audience, breakdown }
-      },
-      submittedSteps: [...state.submittedSteps, 6]
-    });
-    setShowFeedback(true);
-  };
-
+const SingleSelect = ({ value, options, onChange, disabled, isCorrect, submitted }: { 
+  value: string; 
+  options: readonly (readonly [string, string])[]; 
+  onChange: (v: string) => void; 
+  disabled: boolean;
+  isCorrect?: boolean;
+  submitted?: boolean;
+}) => {
+  let borderStyle = 'border-slate-300';
+  if (submitted) {
+    borderStyle = isCorrect ? 'border-green-500 bg-green-50/20 text-green-900' : 'border-red-500 bg-red-50/20 text-red-900';
+  }
   return (
-    <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-6">
-
-      {/* Left side: Metrics Selection */}
-      <div className="w-full md:w-1/3 flex flex-col">
-        <div className="mb-4">
-          <span className="inline-block px-3 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-full mb-2 uppercase tracking-wider">
-            Bước 5: Output
-          </span>
-          <h2 className="text-xl font-bold text-slate-800 leading-tight">Thiết kế Dashboard</h2>
-          <p className="text-xs text-slate-500 mt-1 font-medium">Click để đưa chỉ số vào Dashboard. Hãy cẩn thận với cái bẫy "số liệu rác"!</p>
-        </div>
-
-        <div className="space-y-1.5 max-h-[550px] overflow-y-auto pr-2 pb-4 scrollbar-thin scrollbar-thumb-slate-200">
-          {ALL_METRICS.map(metric => {
-            const isSelected = selectedKPIs.includes(metric.id);
-            return (
-              <div
-                key={metric.id}
-                onClick={() => toggleKPI(metric.id)}
-                className={cn(
-                  "p-2.5 border rounded-lg transition-all text-xs flex justify-between items-center group",
-                  isSelected
-                    ? "border-rose-400 bg-rose-50 text-rose-900 font-bold shadow-sm"
-                    : "border-slate-200 bg-white hover:border-rose-200 hover:bg-slate-50 text-slate-600",
-                  !isSubmitted ? "cursor-pointer" : "cursor-default"
-                )}
-              >
-                {metric.label}
-                {isSelected ? (
-                  <MinusCircle size={14} className="text-rose-500" />
-                ) : (
-                  <PlusCircle size={14} className="text-slate-300 group-hover:text-rose-400" />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Right side: Dashboard Preview */}
-      <div className="w-full md:w-2/3 flex flex-col gap-4">
-        <Card className="flex-1 bg-slate-900 border-4 border-slate-800 flex flex-col p-6 shadow-2xl relative min-h-[450px] rounded-3xl overflow-hidden">
-          {/* Cyber Styling */}
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent opacity-50" />
-
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800">
-            <div className="flex items-center gap-3 text-slate-300">
-              <LayoutDashboard size={22} className="text-rose-500" />
-              <span className="font-bold text-sm tracking-widest uppercase">Performance Monitor v1.0</span>
-            </div>
-            <div className="flex gap-1">
-              <div className="w-2 h-2 rounded-full bg-slate-700" />
-              <div className="w-2 h-2 rounded-full bg-slate-700" />
-              <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            </div>
-          </div>
-
-          {selectedKPIs.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
-              <BarChart3 size={64} className="mb-4 opacity-20" />
-              <p className="text-sm font-medium uppercase tracking-tighter">Hệ thống đang chờ chỉ số...</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 auto-rows-max">
-              {selectedKPIs.map(id => {
-                const mst = ALL_METRICS.find(m => m.id === id);
-                const isWrong = showFeedback && !mst?.correct;
-                return (
-                  <div key={id} className={cn(
-                    "p-3 rounded-xl border flex flex-col justify-between h-24 transition-all duration-500 animate-in zoom-in-95",
-                    isWrong ? "bg-red-950/30 border-red-900/50" : "bg-slate-800/50 border-slate-700/50 shadow-inner"
-                  )}>
-                    <div className="flex justify-between items-start">
-                      <span className={cn("text-[10px] font-bold tracking-tight uppercase", isWrong ? "text-red-400" : "text-slate-400")}>
-                        {mst?.label}
-                      </span>
-                      {isWrong && <div className="text-[8px] bg-red-600 text-white px-1.5 rounded-full font-black">X</div>}
-                    </div>
-                    <div className="flex items-end justify-between">
-                      <span className="text-xl font-black text-white font-mono tracking-tighter">{mst?.value}</span>
-                      <div className="w-8 h-1 bg-slate-700 rounded-full mb-2" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* Framework ADO Questions */}
-        <Card className="p-5 shadow-lg border-slate-200 bg-white rounded-2xl">
-          <h3 className="font-black text-slate-800 mb-5 text-sm flex items-center gap-3">
-            <div className="bg-slate-800 text-white w-6 h-6 rounded-lg flex items-center justify-center shadow-md">?</div>
-            PHÂN TÍCH BỐI CẢNH
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">
-                AI SẼ XEM BÁO CÁO NÀY? (AUDIENCE)
-              </label>
-              <select
-                value={audience} onChange={(e) => setAudience(e.target.value)}
-                className={cn(
-                  "w-full text-xs font-bold p-3 rounded-xl border transition-all outline-none",
-                  isSubmitted ? "bg-slate-50 border-slate-200" : "bg-white border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-50"
-                )}
-                disabled={isSubmitted}
-              >
-                <option value="">-- CHỌN ĐỐI TƯỢNG --</option>
-                <option value="marketing_manager">Marketing/Sales Manager (Chiến lược)</option>
-                <option value="data_engineer">Data Engineer (Kỹ thuật hệ thống)</option>
-                <option value="accounting">Kế toán trưởng (Đối soát dòng tiền)</option>
-                <option value="it_admin">IT Admin (Quản trị hạ tầng)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">
-                GÓC NHÌN CHỦ ĐẠO LÀ GÌ? (BREAKDOWN)
-              </label>
-              <select
-                value={breakdown} onChange={(e) => setBreakdown(e.target.value)}
-                className={cn(
-                  "w-full text-xs font-bold p-3 rounded-xl border transition-all outline-none",
-                  isSubmitted ? "bg-slate-50 border-slate-200" : "bg-white border-slate-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-50"
-                )}
-                disabled={isSubmitted}
-              >
-                <option value="">-- CHỌN GÓC NHÌN --</option>
-                <option value="time_segment">Thời gian & Phân khúc khách hàng</option>
-                <option value="ip_address">Phân bố địa chỉ IP người dùng</option>
-                <option value="server_load">Tỉ lệ chiếm dụng bộ nhớ RAM</option>
-                <option value="printer_status">Lượng giấy in còn lại trong kho</option>
-              </select>
-            </div>
-          </div>
-        </Card>
-
-        {showFeedback && (
-          <div className={cn(
-            "p-5 rounded-2xl text-sm border-2 animate-in slide-in-from-bottom-4 duration-500 shadow-xl",
-            selectedKPIs.some(k => !ALL_METRICS.find(m => m.id === k)?.correct) || audience !== CORRECT_ADO.audience || breakdown !== CORRECT_ADO.breakdown
-              ? "bg-amber-50 text-amber-950 border-amber-200"
-              : "bg-green-50 text-green-950 border-green-200"
-          )}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className={cn("w-2 h-6 rounded-full", (selectedKPIs.some(k => !ALL_METRICS.find(m => m.id === k)?.correct) || audience !== CORRECT_ADO.audience || breakdown !== CORRECT_ADO.breakdown) ? "bg-amber-500" : "bg-green-500")} />
-              <h4 className="font-black uppercase tracking-tighter">Phân tích từ Mentor:</h4>
-            </div>
-            <p className="text-xs leading-relaxed font-medium">
-              Dashboard này được thiết kế để giải quyết bài toán của <strong>Marketing Manager</strong>. Vì vậy, các chỉ số về hạ tầng kỹ thuật (CPU, Server Uptime) hay vận hành phụ (Wifi, Chuyên cần) đều là <strong>"Rác dữ liệu"</strong> trong bối cảnh này. Một Dashboard tốt chỉ tập trung vào các chỉ số thúc đẩy hành vi mua hàng và cần được breakdown theo <strong>Thời gian/Phân khúc</strong> để thấy xu hưỡng.
-            </p>
-          </div>
-        )}
-
-        {error && (
-          <div className="text-xs text-red-600 font-bold bg-red-50 p-3 rounded-xl border-2 border-red-200 animate-bounce">
-            {error}
-          </div>
-        )}
-
-        {!isSubmitted ? (
-          <Button onClick={handleSubmit} size="lg" className="h-16 rounded-2xl shadow-xl hover:shadow-brand-200 transition-all gap-3 bg-brand-600 hover:bg-brand-700 font-black tracking-widest uppercase">
-            XUẤT BẢN DASHBOARD <ArrowRight size={20} />
-          </Button>
-        ) : (
-          <Button onClick={nextStep} size="lg" className="h-16 rounded-2xl shadow-xl bg-green-600 hover:bg-green-700 transition-all gap-3 font-black tracking-widest uppercase">
-            HOÀN THÀNH DỰ ÁN <CheckCircle2 size={24} />
-          </Button>
-        )}
-      </div>
-    </div>
+    <select 
+      disabled={disabled} 
+      value={value} 
+      onChange={(e) => onChange(e.target.value)} 
+      className={cn("w-full rounded-lg p-3 text-xs border", borderStyle)}
+    >
+      <option value="">Chọn phương án</option>
+      {options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
+    </select>
   );
 };
+
+const Multi = ({ label, options, selected, onToggle, disabled, expectedList, submitted }: { 
+  label: string; 
+  options: readonly (readonly [string, string])[]; 
+  selected: string[]; 
+  onToggle: (id: string) => void; 
+  disabled: boolean;
+  expectedList: string[];
+  submitted: boolean;
+}) => (
+  <div className="mb-4">
+    <p className="mb-2 text-xs font-bold uppercase text-slate-400">{label}</p>
+    <div className="flex flex-wrap gap-2">
+      {options.map(([id, text]) => {
+        const isSelected = selected.includes(id);
+        const isCorrect = expectedList.includes(id);
+        
+        let chipStyle = 'border-slate-200 bg-white';
+        if (isSelected && !submitted) {
+          chipStyle = 'border-brand-500 bg-brand-50 text-brand-800';
+        } else if (submitted) {
+          if (isCorrect) {
+            chipStyle = 'border-green-500 bg-green-50 text-green-800 font-bold';
+          } else if (isSelected) {
+            chipStyle = 'border-red-500 bg-red-50 text-red-800 line-through';
+          } else {
+            chipStyle = 'border-slate-100 bg-slate-50/50 text-slate-400 opacity-60';
+          }
+        }
+        
+        return (
+          <button 
+            disabled={disabled} 
+            key={id} 
+            onClick={() => onToggle(id)} 
+            className={cn('rounded-full border px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition', chipStyle)}
+          >
+            {submitted && isCorrect && <span className="text-green-600 font-black">✓</span>}
+            {submitted && !isCorrect && isSelected && <span className="text-red-600 font-black">✗</span>}
+            {text}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);

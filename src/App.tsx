@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { INITIAL_STATE, type GameState, BUSINESS_OBJECTIVE } from './types/game';
+import { BUSINESS_OBJECTIVE } from './lib/constants';
+import { createSubmissionId, syncSubmission } from './lib/submission';
+import { EMPTY_SCORE, EMPTY_SELECTIONS, EMPTY_SUBMISSION, INITIAL_STATE, type GameState } from './types/game';
 import { ProgressBar } from './components/ui/ProgressBar';
-
 import { Screen1Welcome } from './screens/Screen1Welcome';
 import { Screen2DataSources } from './screens/Screen2DataSources';
 import { Screen3Pipeline } from './screens/Screen3Pipeline';
@@ -11,101 +12,130 @@ import { Screen5DataModel } from './screens/Screen5DataModel';
 import { Screen6Dashboard } from './screens/Screen6Dashboard';
 import { Screen7Result } from './screens/Screen7Result';
 
+const STORAGE_KEY = 'data-game-state-v2';
+
 function App() {
   const [state, setState] = useState<GameState>(() => {
-    const saved = localStorage.getItem('data-game-state');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_STATE;
-      }
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? { ...INITIAL_STATE, ...JSON.parse(saved) } : INITIAL_STATE;
+    } catch {
+      return INITIAL_STATE;
     }
-    return INITIAL_STATE;
   });
 
-  useEffect(() => {
-    localStorage.setItem('data-game-state', JSON.stringify(state));
-  }, [state]);
+  useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(state)), [state]);
 
-  const updateState = (updates: Partial<GameState>) => {
-    setState(prev => ({ ...prev, ...updates }));
+  const updateState = (updates: Partial<GameState>) =>
+    setState((previous) => ({ ...previous, ...updates }));
+
+  const sync = async (action: 'start' | 'complete', snapshot: GameState) => {
+    const field = action === 'start' ? 'startSync' : 'completeSync';
+    setState((previous) => ({
+      ...previous,
+      submission: { ...previous.submission, [field]: 'pending' },
+    }));
+    try {
+      await syncSubmission(action, snapshot);
+      setState((previous) => ({
+        ...previous,
+        submission: { ...previous.submission, [field]: 'synced' },
+      }));
+    } catch {
+      setState((previous) => ({
+        ...previous,
+        submission: { ...previous.submission, [field]: 'failed' },
+      }));
+    }
   };
 
-  const nextStep = () => {
-    setState(prev => ({ ...prev, currentStep: prev.currentStep + 1 }));
+  const register = (profile: GameState['profile']) => {
+    const submission = {
+      ...EMPTY_SUBMISSION,
+      id: createSubmissionId(),
+      startedAt: new Date().toISOString(),
+      startSync: 'pending' as const,
+    };
+    const snapshot = { ...state, profile, submission };
+    setState(snapshot);
+    void sync('start', snapshot);
+  };
+
+  const nextStep = () => setState((previous) => ({ ...previous, currentStep: previous.currentStep + 1 }));
+
+  const complete = () => {
+    const snapshot = {
+      ...state,
+      currentStep: 7,
+      submission: {
+        ...state.submission,
+        completedAt: state.submission.completedAt || new Date().toISOString(),
+        completeSync: 'pending' as const,
+      },
+    };
+    setState(snapshot);
+    void sync('complete', snapshot);
+  };
+
+  const retrySync = () => {
+    if (state.submission.startSync === 'failed') void sync('start', state);
+    if (state.submission.completedAt && state.submission.completeSync === 'failed') void sync('complete', state);
   };
 
   const resetGame = () => {
-    setState(INITIAL_STATE);
+    setState({
+      ...INITIAL_STATE,
+      profile: state.profile,
+      score: { ...EMPTY_SCORE },
+      selections: { ...EMPTY_SELECTIONS },
+      submission: { ...EMPTY_SUBMISSION },
+    });
   };
 
-  const currentComponent = () => {
-    switch (state.currentStep) {
-      case 1: return <Screen1Welcome state={state} updateState={updateState} nextStep={nextStep} />;
-      case 2: return <Screen2DataSources state={state} updateState={updateState} nextStep={nextStep} />;
-      case 3: return <Screen3Pipeline state={state} updateState={updateState} nextStep={nextStep} />;
-      case 4: return <Screen4Warehouse state={state} updateState={updateState} nextStep={nextStep} />;
-      case 5: return <Screen5DataModel state={state} updateState={updateState} nextStep={nextStep} />;
-      case 6: return <Screen6Dashboard state={state} updateState={updateState} nextStep={nextStep} />;
-      case 7: return <Screen7Result state={state} updateState={updateState} nextStep={resetGame} />;
-      default: return <Screen1Welcome state={state} updateState={updateState} nextStep={nextStep} />;
-    }
-  };
+  const props = { state, updateState, nextStep };
+  const screens = [
+    <Screen1Welcome {...props} register={register} />,
+    <Screen2DataSources {...props} />,
+    <Screen3Pipeline {...props} />,
+    <Screen4Warehouse {...props} />,
+    <Screen5DataModel {...props} />,
+    <Screen6Dashboard {...props} complete={complete} />,
+    <Screen7Result state={state} retrySync={retrySync} resetGame={resetGame} />,
+  ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 font-sans overflow-x-hidden">
-      <header className="bg-white border-b border-slate-200 py-3 shadow-sm z-10 relative">
-        <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 py-3 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold shadow-md">
-              TM
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-800 leading-tight">Data System Builder</h1>
-              <p className="text-xs text-slate-500 font-medium">Data Infrastructure Challenge</p>
-            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 font-bold text-white">TM</div>
+            <div><h1 className="text-xl font-bold">Data System Builder</h1><p className="text-xs text-slate-500">AI Marketing & Sales System</p></div>
           </div>
-          {state.profile.name && (
-            <div className="text-sm font-medium text-brand-800 bg-brand-50 px-4 py-1.5 rounded-full border border-brand-200 shadow-sm">
-              {state.profile.name} <span className="text-slate-400 mx-1">|</span> {state.profile.classCode}
-            </div>
-          )}
+          {state.profile.name && <div className="rounded-full border border-brand-200 bg-brand-50 px-4 py-1.5 text-sm font-semibold text-brand-800">{state.profile.name} | {state.profile.classCode}</div>}
         </div>
       </header>
-
-      <main className="flex-1 w-full max-w-6xl mx-auto flex flex-col pt-0 relative z-0">
+      <main className="mx-auto flex min-h-[calc(100vh-65px)] max-w-6xl flex-col px-4">
         {state.currentStep > 1 && state.currentStep < 7 && (
-          <div className="mt-6 mb-2 px-4 animate-in fade-in slide-in-from-top-4 duration-700">
-            <div className="bg-white border border-brand-100 rounded-xl p-4 shadow-sm flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 shrink-0">
-                <span className="text-xl">🎯</span>
-              </div>
+          <>
+            <div className="mt-6 rounded-xl border border-brand-100 bg-white p-4 shadow-sm space-y-3">
               <div>
-                <p className="text-[10px] font-bold text-brand-600 uppercase tracking-widest mb-0.5">Mục tiêu của hệ thống</p>
-                <p className="text-slate-700 font-semibold leading-tight capitalize-first">
-                  "{BUSINESS_OBJECTIVE}"
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-brand-600">Bối cảnh Case Study</p>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  <strong>RetailCo đang tăng trưởng chậm.</strong> Dữ liệu nằm rải rác giữa Ads, GA4, CRM, Order System, Email và POS. Các team tranh luận bằng những KPI khác nhau, trong khi ngân sách marketing vẫn đang target dàn trải.
                 </p>
               </div>
+              <div className="pt-2.5 border-t border-slate-100">
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-brand-600">Business Objective xuyên suốt</p>
+                <p className="font-semibold text-xs text-slate-700 mt-1">{BUSINESS_OBJECTIVE}</p>
+              </div>
             </div>
-          </div>
+            <ProgressBar currentStep={state.currentStep} totalSteps={7} />
+          </>
         )}
-        
-        {state.currentStep > 1 && state.currentStep < 7 && (
-          <ProgressBar currentStep={state.currentStep} totalSteps={7} />
-        )}
-        
-        <div className="flex-1 w-full flex items-center justify-center p-4">
+        <div className="flex flex-1 items-center justify-center py-6">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={state.currentStep}
-              className="w-full flex items-center justify-center pb-12"
-              initial={{ opacity: 0, scale: 0.98, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 1.02, y: -10 }}
-              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            >
-              {currentComponent()}
+            <motion.div key={state.currentStep} className="w-full" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
+              {screens[state.currentStep - 1] ?? screens[0]}
             </motion.div>
           </AnimatePresence>
         </div>
